@@ -1,7 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="smalltv-studio">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -6 70 70" role="img" aria-label="smalltv-studio">
   <rect x="7" y="13" width="50" height="38" rx="6" fill="none" stroke="#22c55e" stroke-width="3"/>
   <polyline points="15,38 23,30 30,34 37,22 44,28 50,20" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M24 51 L24 57 M40 51 L40 57" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
   <path d="M20 57 L28 57 M36 57 L44 57" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
-  <polygon points="50,20 55.6,18.6 62.1,12.1 57.9,7.9 51.4,14.4" fill="#22c55e" stroke="#22c55e" stroke-width="1" stroke-linejoin="round"/>
+  <polygon points="50,20 58.13,18.23 51.77,11.87" fill="#f5c78e"/>
+  <polygon points="50,20 53.49,19.24 50.76,16.51" fill="#22c55e"/>
+  <polygon points="58.13,18.23 63.79,12.58 57.42,6.21 51.77,11.87" fill="#f59e0b"/>
+  <polygon points="63.79,12.58 65.91,10.45 59.55,4.09 57.42,6.21" fill="#94a3b8"/>
+  <polygon points="65.91,10.45 68.74,7.63 62.37,1.26 59.55,4.09" fill="#f472b6"/>
 </svg>

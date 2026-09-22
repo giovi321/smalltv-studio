@@ -22,6 +22,24 @@ The reason is compatibility. If the editor and the firmware disagree on the form
 - Keep unrelated changes in their own pull request
 - Never commit credentials, API keys, or URLs with tokens in them, including inside example themes
 
+## Pull requests
+
+- `main` is protected. Every change goes through a pull request, including changes by the maintainers
+- Force pushes to `main` and deleting it are blocked
+- Rebase on `main` before merging, so the history stays linear
+
+## Releases
+
+- Only the maintainers cut releases, from `main`, never from a feature branch
+- Versions follow semantic versioning and are tagged `vMAJOR.MINOR.PATCH`, for example `v0.3.1`
+  - MAJOR: a `.stheme` file exported by the new version fails to install on firmware that accepted the previous version's output, or project files from the previous version no longer open
+  - MINOR: new editor features or support for new format features that smalltv-mod has already merged
+  - PATCH: fixes that change neither the export output nor the project file format
+- Do not bump the version in a feature pull request. The maintainer bumps it in a separate commit on `main` at release time
+- Every release is a GitHub release with notes that list the changes and name the smalltv-mod release the export output was validated against
+- Before tagging, export the bundled example themes and validate them with the smalltv-mod tools for that release. Do not tag if any of them fails
+- A published tag is never moved or deleted. A broken release is fixed by a new patch release
+
 ## Commits
 
 - Commit messages use `type(scope): summary`, for example `feat(export): ...`, `fix(preview): ...`, `docs(readme): ...`, `ci: ...`
