@@ -5,10 +5,40 @@ export type Anchor =
   | 'center-left' | 'center' | 'center-right'
   | 'bottom-left' | 'bottom-center' | 'bottom-right';
 
+/* A fetched data field drives one property, either through a linear mapping or through color stops. */
+export interface NumericBinding {
+  source: string;
+  input: [number, number];
+  output: [number, number];
+  clamp?: boolean;
+}
+export interface ColorStop {
+  at: number;
+  value: string;
+}
+export interface ColorBinding {
+  source: string;
+  stops: ColorStop[];
+}
+export type Binding = NumericBinding | ColorBinding;
+export type NumericTarget = 'x' | 'y' | 'width' | 'height' | 'radius' | 'cornerRadius' | 'x2' | 'y2' | 'size' | 'strokeWidth' | 'scroll.width' | 'scroll.speed';
+export type ColorTarget = 'color' | 'fill' | 'stroke';
+export type BindTarget = NumericTarget | ColorTarget;
+export type Bindings = Partial<Record<BindTarget, Binding>>;
+
 interface LayerBase {
   id: string;
   x: number;
   y: number;
+  bind?: Bindings;
+}
+/* Horizontal scrolling inside a fixed viewport; `x`, `y` and `anchor` place the viewport. */
+export interface Scroll {
+  width: number;
+  mode: 'loop' | 'bounce';
+  speed: number;
+  pause?: number;
+  gap?: number;
 }
 export interface TextLayer extends LayerBase {
   type: 'text';
@@ -16,6 +46,7 @@ export interface TextLayer extends LayerBase {
   value: string;
   size: number;
   color: string;
+  scroll?: Scroll;
 }
 export interface ImageLayer extends LayerBase {
   type: 'image';
@@ -37,6 +68,7 @@ export interface ShapeLayer extends LayerBase {
   width?: number;
   height?: number;
   radius?: number;
+  cornerRadius?: number;
   x2?: number;
   y2?: number;
   fill?: string;
