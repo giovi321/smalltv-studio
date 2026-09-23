@@ -5,10 +5,10 @@ import { create } from 'zustand';
 import * as C from '../core/core';
 import { applicable } from '../core/dynamic';
 import type { Sample } from '../core/core';
-import type { Asset, Assets, BindTarget, Binding, DataSource, Layer, LayerType, Project, Rect, Target, Theme } from '../core/types';
+import type { Asset, Assets, BindTarget, Binding, DataSource, Layer, LayerType, Project, Rect, Theme } from '../core/types';
 
 export const MAX_LAYERS = 32, MAX_SOURCES = 4, MAX_FIELDS = 8, MAX_ELAPSED = 60000;
-const HISTORY = 100, MERGE_MS = 700, TARGET_KEY = 'smalltv-studio:target';
+const HISTORY = 100, MERGE_MS = 700;
 export const labels: Record<LayerType, string> = { text: 'Text', image: 'Image', animation: 'Animation', shape: 'Shape' };
 export type Tab = 'layers' | 'theme' | 'data';
 
@@ -24,7 +24,6 @@ export interface StudioState {
   hidden: ReadonlySet<string>;   // editor-only view flags, never exported
   locked: ReadonlySet<string>;
   sample: Sample;                // "source.field" -> preview-only value
-  target: Target;
   problems: string[];
   packed: Uint8Array<ArrayBuffer> | null;
   history: Snapshot[];
@@ -39,23 +38,13 @@ export interface StudioState {
 }
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-function loadTarget(): Target {
-  try { return localStorage.getItem(TARGET_KEY) === 'legacy' ? 'legacy' : 'current'; } catch { return 'current'; }
-}
-function analyze(theme: Theme, assets: Assets, target: Target) {
-  const problems = C.validate(theme, assets, target);
+function analyze(theme: Theme, assets: Assets) {
+  const problems = C.validate(theme, assets);
   let packed: Uint8Array<ArrayBuffer> | null = null;
   if (!problems.length) {
-    try { packed = C.pack(theme, assets, target); } catch (error) { problems.push((error as Error).message); }
+    try { packed = C.pack(theme, assets); } catch (error) { problems.push((error as Error).message); }
   }
   return { problems, packed };
-}
-/* Keeps the manifest valid for the chosen firmware: older firmware rejects `insecureTls`, newer requires it for HTTPS. */
-function normalizeForTarget(theme: Theme, target: Target) {
-  for (const s of theme.data ?? []) {
-    if (target === 'legacy') delete s.insecureTls;
-    else if (/^https:/i.test(s.url) && s.insecureTls == null) s.insecureTls = true;
-  }
 }
 export function blankProject(): Project {
   return {
@@ -74,11 +63,11 @@ function localNow() {
   return Date.parse(text + 'Z');
 }
 
-const initial = blankProject(), initialTarget = loadTarget();
+const initial = blankProject();
 export const useStudio = create<StudioState>()(() => ({
   theme: initial.theme, assets: initial.assets, selected: 0, dirty: false, busy: false,
-  hidden: new Set(), locked: new Set(), sample: {}, target: initialTarget,
-  ...analyze(initial.theme, initial.assets, initialTarget),
+  hidden: new Set(), locked: new Set(), sample: {},
+  ...analyze(initial.theme, initial.assets),
   history: [], future: [],
   playing: true, elapsed: 0, baseTime: localNow(), snap: true, grid: false, tab: 'layers',
   notice: { message: 'Nothing is ever uploaded. Files stay in your browser.', error: false, serial: 0 },
@@ -102,7 +91,7 @@ export function layerDimensions(l: Layer, assets: Assets = get().assets): { widt
 }
 export function renderFrame(s: StudioState = get()) {
   const theme = { ...s.theme, layers: s.theme.layers.filter(l => !s.hidden.has(l.id)) };
-  return C.render(theme, s.assets, previewTime(s), Math.floor(s.elapsed), s.sample, s.target);
+  return C.render(theme, s.assets, previewTime(s), Math.floor(s.elapsed), s.sample);
 }
 export function budget(theme: Theme, packed: Uint8Array | null) {
   return {
@@ -139,14 +128,13 @@ export function edit(fn: (d: Draft) => void, key = '') {
     ...d, dirty: true,
     hidden: pruneFlags(d.theme, s.hidden), locked: pruneFlags(d.theme, s.locked),
     history: merge ? s.history : capped(s.history, snapshot(s)), future: merge ? s.future : [],
-    ...analyze(d.theme, d.assets, s.target),
+    ...analyze(d.theme, d.assets),
   });
 }
 function restore(to: Snapshot, history: Snapshot[], future: Snapshot[]) {
   const s = get(), theme = clone(to.theme);
-  normalizeForTarget(theme, s.target);
   mergeKey = '';
-  set({ theme, assets: to.assets, selected: to.selected, history, future, dirty: true, hidden: pruneFlags(theme, s.hidden), locked: pruneFlags(theme, s.locked), ...analyze(theme, to.assets, s.target) });
+  set({ theme, assets: to.assets, selected: to.selected, history, future, dirty: true, hidden: pruneFlags(theme, s.hidden), locked: pruneFlags(theme, s.locked), ...analyze(theme, to.assets) });
 }
 export function undo() {
   const s = get(); if (!s.history.length) return;
@@ -172,21 +160,20 @@ export function dragTo(session: DragSession, fn: (d: Draft) => void): boolean {
 export function endDrag(session: DragSession, moved: boolean) {
   const s = get();
   mergeKey = '';
-  if (moved) set({ dirty: true, history: capped(s.history, session.before), future: [], ...analyze(s.theme, s.assets, s.target) });
+  if (moved) set({ dirty: true, history: capped(s.history, session.before), future: [], ...analyze(s.theme, s.assets) });
   else set({ theme: session.before.theme, assets: session.before.assets });
 }
 
 /* ---------- project lifecycle ---------- */
 export function load(project: Project, message?: string) {
-  const s = get(), theme = project.theme;
-  normalizeForTarget(theme, s.target);
+  const theme = project.theme;
   let selected = theme.layers.findIndex(l => l.type === 'text');
   if (selected < 0 && theme.layers.length) selected = 0;
   mergeKey = '';
   restartPlayback();
   set({
     theme, assets: project.assets, selected, dirty: false, history: [], future: [], hidden: new Set(), locked: new Set(), sample: {},
-    elapsed: 0, playing: true, ...analyze(theme, project.assets, s.target),
+    elapsed: 0, playing: true, ...analyze(theme, project.assets),
   });
   if (message) notify(message);
 }
@@ -323,23 +310,12 @@ export function setBinding(index: number, target: BindTarget, binding: Binding |
   }, key);
 }
 
-/* ---------- target firmware ---------- */
-/* Not an undoable edit: the target is a preference, so the manifest is always kept valid for it. */
-export function setTarget(target: Target) {
-  const s = get(); if (target === s.target) return;
-  try { localStorage.setItem(TARGET_KEY, target); } catch { /* per-viewer convenience only */ }
-  const theme = clone(s.theme);
-  normalizeForTarget(theme, target);
-  set({ target, theme, dirty: true, ...analyze(theme, s.assets, target) });
-}
-
 /* ---------- data sources ---------- */
 export function addSource() {
   const list = sources(); if (list.length >= MAX_SOURCES) return;
   let n = 1;
   while (list.some(s => s.id === 'source' + n)) n++;
-  const created: DataSource = { id: 'source' + n, url: 'https://', interval: 300, fields: [{ id: 'value', path: 'value' }] };
-  if (get().target === 'current') created.insecureTls = true;
+  const created: DataSource = { id: 'source' + n, url: 'https://', interval: 300, insecureTls: true, fields: [{ id: 'value', path: 'value' }] };
   edit(d => { d.theme.data = [...(d.theme.data ?? []), created]; });
 }
 export function removeSource(i: number) {

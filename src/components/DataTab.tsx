@@ -3,7 +3,7 @@ import * as C from '../core/core';
 import type { DataField, DataSource } from '../core/types';
 import * as S from '../store/studio';
 import { useStudio } from '../store/studio';
-import { Check, Field, NumberInput, Segmented } from './controls';
+import { Check, Field, NumberInput } from './controls';
 import { Icon } from './Icon';
 
 /* An ID input that commits on blur/Enter, so a half-typed ID never renames variables. */
@@ -51,7 +51,7 @@ function FieldRow({ source, i, field, j }: { source: DataSource; i: number; fiel
 }
 
 function SourceCard({ source, i }: { source: DataSource; i: number }) {
-  const target = useStudio(s => s.target), others = (useStudio(s => s.theme.data) ?? []).filter(o => o !== source).map(o => o.id);
+  const others = (useStudio(s => s.theme.data) ?? []).filter(o => o !== source).map(o => o.id);
   const [fetching, setFetching] = useState(false);
   const https = /^https:/i.test(source.url);
   const fetchLive = async () => {
@@ -82,10 +82,10 @@ function SourceCard({ source, i }: { source: DataSource; i: number }) {
         <input value={source.url} maxLength={200} spellCheck={false} placeholder="https://example.com/data.json" aria-label="JSON URL" autoComplete="off"
           onChange={e => {
             const v = e.target.value;
-            S.edit(d => { const s = d.theme.data![i]; s.url = v; if (target === 'current' && /^https:/i.test(v) && s.insecureTls == null) s.insecureTls = true; }, 'data:' + i + ':url');
+            S.edit(d => { const s = d.theme.data![i]; s.url = v; if (/^https:/i.test(v) && s.insecureTls == null) s.insecureTls = true; }, 'data:' + i + ':url');
           }} />
       </Field>
-      {target === 'current' && https && (
+      {https && (
         <div className="tls-row">
           <Check label="Accept an unverified HTTPS certificate" checked={source.insecureTls === true}
             onChange={on => S.edit(d => { const s = d.theme.data![i]; if (on) s.insecureTls = true; else delete s.insecureTls; })} />
@@ -105,20 +105,11 @@ function SourceCard({ source, i }: { source: DataSource; i: number }) {
 }
 
 export function DataTab() {
-  const list = useStudio(s => s.theme.data) ?? [], target = useStudio(s => s.target);
+  const list = useStudio(s => s.theme.data) ?? [];
   return (
     <>
       <div className="panel-heading"><h2>Data sources</h2><span className="badge">{list.length} / {S.MAX_SOURCES}</span></div>
       <p className="hint">The device fetches small JSON documents and exposes chosen fields as text variables such as <code>{'{weather.temp}'}</code>.</p>
-      <div className="field target">
-        <span className="field-label">Device firmware</span>
-        <Segmented options={[['current', 'Latest'], ['legacy', 'Older']] as const} value={target} onPick={S.setTarget} label="Target firmware" />
-        <span className="hint">
-          {target === 'legacy'
-            ? 'For firmware from before the insecureTls change: the field is omitted and HTTPS is accepted as is. If installing fails with "insecureTls: unknown field", this is the one.'
-            : 'For current firmware: HTTPS sources must carry insecureTls. If installing fails with "insecureTls: unknown field", switch to Older.'}
-        </span>
-      </div>
       <div className="sources">
         {list.map((s, i) => <SourceCard key={i} source={s} i={i} />)}
         {!list.length && <p className="empty-state">No data source yet. Add one to show weather, prices or any small JSON value.</p>}

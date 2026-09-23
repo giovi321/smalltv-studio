@@ -257,7 +257,6 @@ input.rename { height: 24px; font-size: 12.5px; padding: 0 6px; }
 .source-title { display: flex; align-items: center; gap: 7px; font-weight: 650; }
 .field-row { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 .field-row-top { display: flex; align-items: center; justify-content: space-between; }
-.target { margin-bottom: 14px; }
 .tls-row { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; border: 1px solid rgba(243, 188, 132, .35); background: rgba(243, 188, 132, .07); border-radius: var(--radius); }
 
 /* ---------- stage ---------- */

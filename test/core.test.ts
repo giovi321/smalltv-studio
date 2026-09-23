@@ -81,10 +81,4 @@ describe('data sources', () => {
     expect(C.bounds({ id: 't', type: 'text', x: 0, y: 0, size: 8, color: '#ffffff', value: '{weather.city}' }, new Map(), time, { 'weather.city': 'Paris' }).w).toBe(5 * Math.ceil(8 * 6 / 8));
     expect(C.render(withData, terminal.assets, time, 0, { 'weather.city': 'Paris', 'weather.temp': '21' }).length).toBe(240 * 240 * 4);
   });
-  it('targets older firmware without insecureTls', () => {
-    expect(C.validate(withData, terminal.assets, 'legacy').join('\n')).toMatch(/data\[0\]\.insecureTls: unknown field/);
-    const legacyOk = structuredClone(withData); delete source(legacyOk).insecureTls;
-    expect(C.validate(legacyOk, terminal.assets, 'legacy')).toEqual([]);
-    expect(C.validate(legacyOk, terminal.assets, 'current').join('\n')).toMatch(/data\[0\]\.insecureTls/);
-  });
 });
