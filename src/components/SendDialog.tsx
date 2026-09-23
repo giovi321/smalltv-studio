@@ -1,7 +1,6 @@
 /* "Send to TV": checks the device, installs the package and optionally activates it. */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import * as D from '../device/device';
-import type { Target } from '../core/types';
 import * as S from '../store/studio';
 import { useStudio } from '../store/studio';
 import { Check } from './controls';
@@ -48,17 +47,13 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
   }, [open]);
 
   /* ---------- errors ---------- */
-  function showError(error: unknown, retry: () => void) {
+  function showError(error: unknown) {
     const e = error as D.DeviceError, text = e.message || String(error);
     if (e.auth) { setAuthOpen(true); requestAnimationFrame(() => userInput.current?.focus()); }
-    let fix: Target | null = null, body: ReactNode = text;
-    if (/insecureTls: unknown field/i.test(text)) fix = 'legacy';
-    else if (/insecureTls: set true/i.test(text)) fix = 'current';
-    else if (e.status === 404 && /not found|Cannot GET/i.test(text)) body = 'This TV firmware has no theme support. Update it to a smalltv-mod release with theme clocks (the lean build has none).';
+    let body: ReactNode = text;
+    if (e.status === 404 && /not found|Cannot GET/i.test(text)) body = 'This TV firmware has no theme support. Update it to a smalltv-mod release with theme clocks (the lean build has none).';
     say(<>
       <span><strong>Not sent. </strong>{body}</span>
-      {fix && <p>{fix === 'legacy' ? 'Your TV runs an older firmware that does not know this field.' : 'Your TV runs a newer firmware that requires this field.'}</p>}
-      {fix && <button type="button" className="small" onClick={() => { S.setTarget(fix); S.setTab('data'); retry(); }}><Icon name="refresh" />Switch Device firmware to {fix === 'legacy' ? 'Older' : 'Latest'} and try again</button>}
     </>, 'error');
   }
 
@@ -79,7 +74,7 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
     } catch (error) {
       if (showSteps) mark('check', 'fail');
       setDevice(null);
-      if (!quiet) showError(error, () => void go());
+      if (!quiet) showError(error);
       return null;
     }
   }
@@ -115,7 +110,7 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
       } else mark('remove', 'skip', existing ? 'Not replacing' : 'Nothing to replace');
       mark('upload', 'run');
       try { await D.install(target.host, bytes, id, auth()); mark('upload', 'done', target.kind === 'relay' ? kib(bytes.length) : 'Sent, not confirmed'); }
-      catch (error) { mark('upload', 'fail'); showError(error, () => void go()); return; }
+      catch (error) { mark('upload', 'fail'); showError(error); return; }
       if (activate) {
         mark('activate', 'run');
         if (target.kind === 'direct') await new Promise(r => setTimeout(r, 1200));   // let the TV finish the install first

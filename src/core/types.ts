@@ -113,10 +113,6 @@ export interface Project {
   assets: Assets;
 }
 
-/* Firmware before commit 0866a70 has no `insecureTls` key and accepts https:// without it.
- * Newer firmware rejects https:// unless `insecureTls` is true. Packages cannot satisfy both. */
-export type Target = 'current' | 'legacy';
-
 export interface Rect {
   x: number;
   y: number;

@@ -3,7 +3,7 @@
  */
 import { applicable, isColorTarget, MAX_BINDINGS, MAX_STOPS, resolveLayer, scrollColumn, scrollOffset, targetRange, textPixelWidth } from './dynamic';
 import { font } from './font';
-import type { Anchor, Asset, Assets, Layer, NumericTarget, Rect, Target, Theme } from './types';
+import type { Anchor, Asset, Assets, Layer, NumericTarget, Rect, Theme } from './types';
 
 const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', { fatal: true });
 export const MAX_PACKAGE = 3 * 1024 * 1024, MAX_ENTRIES = 256, MAX_MANIFEST = 16384;
@@ -56,7 +56,7 @@ function validText(s: unknown, fields: readonly string[]): boolean {
 
 /* Returns every problem as "path: reason". The manifest arrives as untrusted JSON, so it is read loosely. */
 type Loose = Record<string, any>;
-export function validate(theme: unknown, assets: Assets | null = null, target: Target = 'current'): string[] {
+export function validate(theme: unknown, assets: Assets | null = null): string[] {
   const errors: string[] = [], fail = (p: string, why: string) => { errors.push(p + ': ' + why); };
   const object = (o: unknown, p: string, allowed: string[]): o is Loose => {
     if (!o || typeof o !== 'object' || Array.isArray(o)) { fail(p, 'expected an object'); return false; }
@@ -72,7 +72,6 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
     if (!Number.isInteger(o[k]) || o[k] < min || o[k] > max) fail(p + '.' + k, 'expected an integer from ' + min + ' to ' + max);
   };
   const checkColor = (o: Loose, k: string, p: string) => { if (typeof o[k] !== 'string' || !/^#[0-9a-f]{6}$/i.test(o[k])) fail(p + '.' + k, 'expected #RRGGBB'); };
-  const legacy = target === 'legacy';
 
   if (!object(theme, 'theme.json', ['spec', 'theme', 'display', 'layers', 'data'])) return errors;
   if (bytesOf(JSON.stringify(theme)) > MAX_MANIFEST) fail('theme.json', 'exceeds 16 KiB');
@@ -95,13 +94,13 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
         if (sourceIds.has(source.id)) fail(p + '.id', 'duplicate data source ID');
         sourceIds.add(source.id);
       }
-      if (!object(source, p, legacy ? ['id', 'url', 'interval', 'fields'] : ['id', 'url', 'interval', 'insecureTls', 'fields'])) return;
+      if (!object(source, p, ['id', 'url', 'interval', 'insecureTls', 'fields'])) return;
       string(source, 'id', p, 32); string(source, 'url', p, 200); number(source, 'interval', p, 10, 86400);
       if (!idOK(source.id) || source.id.includes('.')) fail(p + '.id', 'use letters, digits, - or _');
       if (source.insecureTls != null && typeof source.insecureTls !== 'boolean') fail(p + '.insecureTls', 'expected true or false');
       if (typeof source.url === 'string') {
         if (!/^https?:\/\/[^/?#]/.test(source.url)) fail(p + '.url', 'expected an http:// or https:// URL that includes a host');
-        else if (!legacy && /^https:/.test(source.url) && source.insecureTls !== true) fail(p + '.insecureTls', 'set to true: HTTPS certificates cannot be verified on the device');
+        else if (/^https:/.test(source.url) && source.insecureTls !== true) fail(p + '.insecureTls', 'set to true: HTTPS certificates cannot be verified on the device');
       }
       if (!Array.isArray(source.fields) || source.fields.length < 1 || source.fields.length > 8) { fail(p + '.fields', 'expected 1 to 8 fields'); return; }
       const ids = new Set<string>();
@@ -267,7 +266,7 @@ export function assetRGBA(asset: Asset): Uint8ClampedArray<ArrayBuffer> {
 }
 
 /* ---------- .stheme packages ---------- */
-export function unpack(input: ArrayBuffer | ArrayBufferView, target: Target = 'current'): { theme: Theme; assets: Assets } {
+export function unpack(input: ArrayBuffer | ArrayBufferView): { theme: Theme; assets: Assets } {
   const { bytes, v } = view(input);
   if (bytes.length < 8 || bytes.length > MAX_PACKAGE || magic(bytes) !== 'STH1' || v.getUint16(6, true)) throw Error('Invalid .stheme package');
   const count = v.getUint16(4, true);
@@ -291,12 +290,12 @@ export function unpack(input: ArrayBuffer | ArrayBufferView, target: Target = 'c
     }
   }
   if (offset !== bytes.length) throw Error('Trailing package bytes');
-  const errors = validate(theme, assets, target);
+  const errors = validate(theme, assets);
   if (errors.length) throw Error(errors.join('\n'));
   return { theme: theme as Theme, assets };
 }
-export function pack(theme: Theme, assets: Assets, target: Target = 'current'): Uint8Array<ArrayBuffer> {
-  const errors = validate(theme, assets, target);
+export function pack(theme: Theme, assets: Assets): Uint8Array<ArrayBuffer> {
+  const errors = validate(theme, assets);
   if (errors.length) throw Error(errors.join('\n'));
   const entries = new Map<string, Uint8Array<ArrayBuffer>>([['theme.json', encoder.encode(JSON.stringify(theme))]]);
   for (const l of theme.layers) for (const name of framePaths(l)) if (!entries.has(name)) entries.set(name, encodeImage(assets.get(name)!));
@@ -372,8 +371,8 @@ function rectangleHit(x: number, y: number, rx: number, ry: number, rw: number, 
   const dist = (x - cx) ** 2 + (y - cy) ** 2, inside = dist <= radius * radius, inner = Math.max(0, radius - sw);
   return { inside, edge: inside && (inner === 0 || dist > inner * inner) };
 }
-export function render(theme: Theme, assets: Assets, time: Date, elapsed = 0, data?: Sample, target: Target = 'current'): Uint8ClampedArray<ArrayBuffer> {
-  const errors = validate(theme, null, target);
+export function render(theme: Theme, assets: Assets, time: Date, elapsed = 0, data?: Sample): Uint8ClampedArray<ArrayBuffer> {
+  const errors = validate(theme, null);
   if (errors.length) throw Error(errors[0]);
   const output = new Uint16Array(240 * 240);
   output.fill(color(theme.display.background));

@@ -158,7 +158,7 @@ export function Stage() {
   /* Pixels: redrawn whenever anything the renderer reads changes. Keeps the last valid frame while a field is incomplete. */
   useEffect(() => {
     try { preview.current?.getContext('2d')!.putImageData(new ImageData(S.renderFrame(s), 240, 240), 0, 0); } catch { /* keep the last valid frame */ }
-  }, [s.theme, s.assets, s.hidden, s.sample, s.target, s.baseTime, s.elapsed]);
+  }, [s.theme, s.assets, s.hidden, s.sample, s.baseTime, s.elapsed]);
   useEffect(() => {
     const c = overlay.current; if (!c) return;
     const size = Math.round(240 * scale * dpr());

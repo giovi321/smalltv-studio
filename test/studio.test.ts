@@ -6,7 +6,7 @@ const state = () => S.useStudio.getState();
 const text = (i: number) => state().theme.layers[i] as TextLayer;
 
 describe('studio store', () => {
-  beforeEach(() => { S.setTarget('current'); S.load(S.blankProject()); });
+  beforeEach(() => { S.load(S.blankProject()); });
 
   it('starts valid and packable', () => {
     expect(state().problems).toEqual([]);
@@ -44,15 +44,11 @@ describe('studio store', () => {
     expect(text(0).value).toBe('{source1.temp}');
     expect(state().problems).toEqual([]);
   });
-  it('keeps the manifest valid when switching firmware', () => {
+  it('acknowledges unverified HTTPS for new sources', () => {
     S.addSource();
     S.edit(d => { d.theme.data![0].url = 'https://example.com/x.json'; });
     expect(state().theme.data![0].insecureTls).toBe(true);
-    S.setTarget('legacy');
-    expect(state().theme.data![0].insecureTls).toBeUndefined();
     expect(state().problems).toEqual([]);
-    S.setTarget('current');
-    expect(state().theme.data![0].insecureTls).toBe(true);
   });
   it('clamps translation to the firmware coordinate range', () => {
     S.select(0);
@@ -62,7 +58,7 @@ describe('studio store', () => {
 });
 
 describe('bindings in the store', () => {
-  beforeEach(() => { S.setTarget('current'); S.load(S.blankProject()); });
+  beforeEach(() => { S.load(S.blankProject()); });
   it('follow data field renames and drop when no longer applicable', () => {
     S.addSource();
     S.edit(d => { d.theme.data![0].url = 'http://192.168.1.2/x.json'; });

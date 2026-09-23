@@ -91,15 +91,14 @@ export async function pickAssets(forType: 'image' | 'animation') {
 
 /* ---------- projects ---------- */
 function parseManifest(text: string): Theme {
-  const theme = JSON.parse(text), errors = C.validate(theme, null, S.useStudio.getState().target);
+  const theme = JSON.parse(text), errors = C.validate(theme);
   if (errors.length) throw Error(errors.join('\n'));
   return theme;
 }
 export async function openFile(file: File) {
-  const target = S.useStudio.getState().target;
   if (file.name.toLowerCase().endsWith('.stheme')) {
     if (file.size > C.MAX_PACKAGE) throw Error('The package exceeds 3 MiB.');
-    S.load(C.unpack(await file.arrayBuffer(), target), 'Theme imported: ' + file.name);
+    S.load(C.unpack(await file.arrayBuffer()), 'Theme imported: ' + file.name);
   } else {
     if (file.size > C.MAX_MANIFEST) throw Error('theme.json exceeds 16 KiB.');
     S.load({ theme: parseManifest(await file.text()), assets: new Map() }, 'Manifest imported. Import missing images, or open the whole source folder.');
@@ -123,12 +122,12 @@ export async function openFolder(files: File[]) {
     if (bytes > C.MAX_PACKAGE || assets.size >= 255) throw Error('The folder exceeds the 3 MiB / 256 entry limits.');
     assets.set(path, asset);
   }
-  C.pack(theme, assets, S.useStudio.getState().target);
+  C.pack(theme, assets);
   S.load({ theme, assets }, 'Source folder imported, including images and animations.');
 }
 export function loadExample(id: ExampleId) {
   const bytes = Uint8Array.from(atob(EXAMPLES[id].data), c => c.charCodeAt(0));
-  S.load(C.unpack(bytes, 'current'), EXAMPLES[id].name + ' loaded. Edit its layers to make it yours.');
+  S.load(C.unpack(bytes), EXAMPLES[id].name + ' loaded. Edit its layers to make it yours.');
   for (const [key, value] of Object.entries(EXAMPLES[id].sample ?? {})) S.setSample(key, value);
 }
 export async function openPackageDialog() {
