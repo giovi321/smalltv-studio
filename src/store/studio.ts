@@ -3,8 +3,9 @@
  */
 import { create } from 'zustand';
 import * as C from '../core/core';
+import { applicable } from '../core/dynamic';
 import type { Sample } from '../core/core';
-import type { Asset, Assets, DataSource, Layer, LayerType, Project, Rect, Target, Theme } from '../core/types';
+import type { Asset, Assets, BindTarget, Binding, DataSource, Layer, LayerType, Project, Rect, Target, Theme } from '../core/types';
 
 export const MAX_LAYERS = 32, MAX_SOURCES = 4, MAX_FIELDS = 8, MAX_ELAPSED = 60000;
 const HISTORY = 100, MERGE_MS = 700, TARGET_KEY = 'smalltv-studio:target';
@@ -307,6 +308,21 @@ export function setLayerAssets(index: number, frames: Asset[]) {
   });
 }
 
+/* ---------- bindings ---------- */
+/* Drops bindings a layer no longer supports, for example after its fill was removed or its shape changed. */
+export function pruneBindings(l: Layer) {
+  if (!l.bind) return;
+  for (const target of Object.keys(l.bind) as BindTarget[]) if (!applicable(l, target)) delete l.bind[target];
+  if (!Object.keys(l.bind).length) delete l.bind;
+}
+export function setBinding(index: number, target: BindTarget, binding: Binding | null, key = '') {
+  edit(d => {
+    const l = d.theme.layers[index];
+    if (binding) l.bind = { ...l.bind, [target]: binding };
+    else if (l.bind) { delete l.bind[target]; if (!Object.keys(l.bind).length) delete l.bind; }
+  }, key);
+}
+
 /* ---------- target firmware ---------- */
 /* Not an undoable edit: the target is a preference, so the manifest is always kept valid for it. */
 export function setTarget(target: Target) {
@@ -339,9 +355,12 @@ export function removeField(i: number, j: number) {
   const s = sources()[i]; if (!s || s.fields.length <= 1) return;
   edit(d => { d.theme.data![i].fields.splice(j, 1); });
 }
-/* Keeps text variables and preview values in step when a source or field ID changes. */
+/* Keeps text variables, bindings and preview values in step when a source or field ID changes. */
 export function renameDataRef(d: Draft, from: string, to: string) {
-  for (const l of d.theme.layers) if (l.type === 'text') l.value = l.value.split('{' + from + '}').join('{' + to + '}');
+  for (const l of d.theme.layers) {
+    if (l.type === 'text') l.value = l.value.split('{' + from + '}').join('{' + to + '}');
+    for (const b of Object.values(l.bind ?? {})) if (b.source === from) b.source = to;
+  }
   if (from in d.sample) { d.sample[to] = d.sample[from]; delete d.sample[from]; }
 }
 export function setSample(key: string, value: string) {
