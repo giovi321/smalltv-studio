@@ -37,12 +37,14 @@ For development, run `npm run dev` for the hot-reloading editor, and `python3 se
 
 - **Layers**: text, image, animation and shape (rectangle, circle, line) layers, up to 32. Thumbnails, drag-and-drop reordering, double-click rename, and editor-only hide/lock flags (never exported).
 - **Canvas**: 240×240 live preview with pixel-perfect zoom (Fit, 100–500 %), graduated rulers, pixel grid, smart guides and snapping (hold Alt to bypass), handles for every layer type (resize images, rectangles, circles, line endpoints and text size; Shift keeps the aspect ratio), right-click actions and keyboard nudging.
-- **Inspector**: grouped sections, hex + picker colors, 3×3 text anchor, align-to-screen, clock and data variable chips, aspect-locked resizing (nearest-neighbour, resampled from the original pixels).
+- **Inspector**: grouped sections, hex + picker colors, 3×3 text anchor, align-to-screen, clock and data variable chips, aspect-locked resizing (nearest-neighbour, resampled from the original pixels), rounded rectangle corners.
+- **Scrolling text**: a text layer can scroll inside a fixed-width viewport, in `loop` or `bounce` mode, with its speed, pause and gap. The preview follows the device's timing to the millisecond, including the restart when the text changes.
+- **Data bindings**: position, size, stroke width, scroll width/speed and colors can follow a fetched value, through a linear mapping or color stops. Each binding shows its result for the current preview value; without a value the static property applies, as on the device.
 - **Data sources**: up to 4 JSON sources with up to 8 fields each (`{source.field}` variables), including the `insecureTls` acknowledgement the firmware requires for HTTPS. The **Device firmware** switch (Latest / Older, remembered in your browser) matches the firmware you flashed: firmware from before `0866a70` rejects `insecureTls` as an unknown field, newer firmware requires it for HTTPS. Renaming a source or field rewrites the text that uses it. Preview values are editor-only; *Fetch live values* fills them from the URL when the server allows browser requests.
 - **Theme tab**: metadata, background, and a live budget for package size, manifest size, layers, entries and data sources.
 - **Import / export**: `.stheme`, `theme.json`, or a source folder; drop files anywhere on the page (images become image layers, several become an animation). Oversized images are scaled to fit 240×240. Export `.stheme` (Ctrl/Cmd S), manifest only, or a PNG of the preview.
-- **Send to TV**: type the TV's IP and the theme is installed on a SmallTV Pro through its API, then optionally activated. It checks the TV first (firmware, installed themes, free space), can replace an existing theme with the same ID, supports the TV's optional password, and shows the TV's own error messages. Started with `serve.py`, answers are fully visible; otherwise (plain static server or `dist/index.html` opened from disk) it sends blindly because the firmware has no CORS headers. The relay only forwards the firmware's theme routes to private-network addresses.
-- **Examples**: Pixel Room and Terminal Ops, taken from the firmware repository.
+- **Send to TV**: type the TV's IP and the theme is installed on the SmallTV through its API, then optionally activated. It checks the TV first (firmware, installed themes, free space), can replace an existing theme with the same ID, supports the TV's optional password, and shows the TV's own error messages. Started with `serve.py`, answers are fully visible; otherwise (plain static server or `dist/index.html` opened from disk) it sends blindly because the firmware has no CORS headers. The relay only forwards the firmware's theme routes to private-network addresses.
+- **Examples**: Pixel Room, Terminal Ops and Live Status, taken from the firmware repository. Live Status loads with preview values, so its scrolling headlines and data-driven bar move at once.
 - **Validation**: every issue is listed, and clicking one jumps to the layer or the Data tab.
 
 Press `?` in the editor for the keyboard shortcuts.
@@ -68,7 +70,15 @@ npm test               # core tests (Vitest)
 npm run typecheck
 ```
 
-The core is checked against the firmware package format, including data sources and both example packages: they must unpack and pack back byte for byte. Exported packages can also be validated with the firmware's own C++ validator:
+The core is checked against the firmware package format, including data sources and the example packages: they must unpack and pack back byte for byte.
+
+With a smalltv-mod checkout next to this one, the parity tests also build the firmware's native theme tool and compare the two implementations directly: every preview frame must match the C++ renderer pixel for pixel (examples, scrolling, rounded corners, bindings), and a set of broken manifests must be rejected by both, on the same field.
+
+```sh
+SMALLTV_MOD=../smalltv-mod npm test
+```
+
+Exported packages can also be validated with the firmware's own C++ validator:
 
 ```sh
 python3 ../smalltv-mod/tools/smalltv_theme.py validate my-theme.stheme
@@ -81,12 +91,13 @@ The editor is written in TypeScript with React, built by Vite.
 | Path | Role |
 | --- | --- |
 | `src/core/` | Manifest types, validation, package codec, RGB565 renderer and bitmap font (no DOM) |
+| `src/core/dynamic.ts` | Data bindings and text scrolling, following the firmware engine |
 | `src/store/studio.ts` | State (zustand), undo history, layer and data-source actions |
 | `src/device/device.ts` | Theme API client (relay or direct transport) |
 | `src/lib/files.ts` | Import, export and bundled examples |
 | `src/components/` | React UI: top bar, layers / theme / data tabs, stage, inspector, Send to TV |
 | `src/App.tsx` | Layout, keyboard shortcuts, file drops, playback clock |
-| `test/` | Core tests |
+| `test/` | Core, store and firmware parity tests |
 | `fixtures/` | Example packages, bundled into the editor |
 | `serve.py` | Local static server and TV relay |
 
