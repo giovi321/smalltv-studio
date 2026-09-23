@@ -1,8 +1,9 @@
 /* SmallTV V1 model, package codec and RGB565 renderer. No DOM dependencies.
  * Keep compatibility covered by tests against the firmware's package format.
  */
+import { applicable, isColorTarget, MAX_BINDINGS, MAX_STOPS, resolveLayer, scrollColumn, scrollOffset, targetRange, textPixelWidth } from './dynamic';
 import { font } from './font';
-import type { Anchor, Asset, Assets, Layer, Rect, Target, Theme } from './types';
+import type { Anchor, Asset, Assets, Layer, NumericTarget, Rect, Target, Theme } from './types';
 
 const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', { fatal: true });
 export const MAX_PACKAGE = 3 * 1024 * 1024, MAX_ENTRIES = 256, MAX_MANIFEST = 16384;
@@ -75,6 +76,7 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
 
   if (!object(theme, 'theme.json', ['spec', 'theme', 'display', 'layers', 'data'])) return errors;
   if (bytesOf(JSON.stringify(theme)) > MAX_MANIFEST) fail('theme.json', 'exceeds 16 KiB');
+  if (depth(theme) > 8) fail('theme.json', 'exceeds 8 levels of nesting');
   if (theme.spec !== 1) fail('spec', 'expected 1');
   if (object(theme.theme, 'theme', ['id', 'name', 'author', 'version'])) {
     for (const [k, max] of [['id', 48], ['name', 96], ['author', 96], ['version', 32]] as const) string(theme.theme, k, 'theme', max);
@@ -86,8 +88,13 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
   const fields: string[] = [];
   if (theme.data != null) {
     if (!Array.isArray(theme.data) || theme.data.length > 4) fail('data', 'expected an array with at most 4 sources');
+    const sourceIds = new Set<unknown>();
     (Array.isArray(theme.data) ? theme.data : []).forEach((source: unknown, i: number) => {
       const p = 'data[' + i + ']';
+      if (source && typeof source === 'object' && 'id' in source) {
+        if (sourceIds.has(source.id)) fail(p + '.id', 'duplicate data source ID');
+        sourceIds.add(source.id);
+      }
       if (!object(source, p, legacy ? ['id', 'url', 'interval', 'fields'] : ['id', 'url', 'interval', 'insecureTls', 'fields'])) return;
       string(source, 'id', p, 32); string(source, 'url', p, 200); number(source, 'interval', p, 10, 86400);
       if (!idOK(source.id) || source.id.includes('.')) fail(p + '.id', 'use letters, digits, - or _');
@@ -105,7 +112,7 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
         if (!idOK(field.id) || field.id.includes('.')) fail(fp + '.id', 'use letters, digits, - or _');
         if (ids.has(field.id)) fail(fp + '.id', 'duplicate field ID');
         ids.add(field.id);
-        if (typeof field.path === 'string' && !/^[A-Za-z0-9_.-]+$/.test(field.path)) fail(fp + '.path', 'use a dotted JSON object path');
+        if (typeof field.path === 'string' && !/^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/.test(field.path)) fail(fp + '.path', 'use a dotted JSON object path');
         fields.push(source.id + '.' + field.id);
       });
     });
@@ -119,7 +126,7 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
     if (!idOK(o.id) || ids.has(o.id)) fail(p + '.id', 'expected a unique ID (letters, digits, - or _)');
     ids.add(o.id);
     number(o, 'x', p, -240, 479); number(o, 'y', p, -240, 479);
-    const allowed = ['id', 'type', 'x', 'y'];
+    const allowed = ['id', 'type', 'x', 'y', 'scroll', 'bind'];
     if (o.type === 'text') {
       allowed.push('anchor', 'value', 'size', 'color'); string(o, 'value', p, 128); number(o, 'size', p, 8, 96); checkColor(o, 'color', p);
       if (!validText(o.value, fields)) fail(p + '.value', 'use printable ASCII and supported clock variables');
@@ -143,7 +150,9 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
       }
     } else if (o.type === 'shape') {
       allowed.push('shape', 'stroke', 'strokeWidth'); number(o, 'strokeWidth', p, 1, 32, true);
-      if (o.shape === 'rectangle') { allowed.push('width', 'height', 'fill'); number(o, 'width', p, 1, 240); number(o, 'height', p, 1, 240); }
+      if (o.shape === 'rectangle') {
+        allowed.push('width', 'height', 'fill', 'cornerRadius'); number(o, 'width', p, 1, 240); number(o, 'height', p, 1, 240); number(o, 'cornerRadius', p, 0, 120, true);
+      }
       else if (o.shape === 'circle') { allowed.push('radius', 'fill'); number(o, 'radius', p, 1, 240); }
       else if (o.shape === 'line') { allowed.push('x2', 'y2'); number(o, 'x2', p, -240, 479); number(o, 'y2', p, -240, 479); }
       else fail(p + '.shape', 'expected rectangle, circle or line');
@@ -153,8 +162,56 @@ export function validate(theme: unknown, assets: Assets | null = null, target: T
       if (o.shape === 'line' && o.stroke == null) fail(p + '.stroke', 'required for a line');
     } else fail(p + '.type', 'expected text, image, animation or shape');
     object(o, p, allowed);
+    if (o.scroll !== undefined) {
+      if (o.type !== 'text') fail(p + '.scroll', 'only allowed on text layers');
+      else if (object(o.scroll, p + '.scroll', ['width', 'mode', 'speed', 'pause', 'gap'])) {
+        const sp = p + '.scroll';
+        number(o.scroll, 'width', sp, 1, 240); number(o.scroll, 'speed', sp, 1, 240);
+        number(o.scroll, 'pause', sp, 0, 10000, true); number(o.scroll, 'gap', sp, 0, 240, true);
+        if (o.scroll.mode !== 'loop' && o.scroll.mode !== 'bounce') fail(sp + '.mode', 'expected loop or bounce');
+        else if (o.scroll.mode === 'bounce' && o.scroll.gap !== undefined) fail(sp + '.gap', 'not allowed in bounce mode');
+      }
+    }
+    if (o.bind !== undefined) validateBindings(o, p, fields, fail, object, checkColor);
   });
   return errors;
+}
+
+function depth(value: unknown): number {
+  if (!value || typeof value !== 'object') return 0;
+  return 1 + Math.max(0, ...Object.values(value).map(depth));
+}
+const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+function validateBindings(o: Loose, p: string, fields: string[], fail: (p: string, why: string) => void,
+  object: (o: unknown, p: string, allowed: string[]) => o is Loose, checkColor: (o: Loose, k: string, p: string) => void) {
+  const bp = p + '.bind';
+  if (!o.bind || typeof o.bind !== 'object' || Array.isArray(o.bind)) { fail(bp, 'expected an object'); return; }
+  const entries = Object.entries(o.bind as Loose);
+  if (entries.length > MAX_BINDINGS) fail(bp, 'expected at most ' + MAX_BINDINGS + ' bindings');
+  for (const [target, b] of entries) {
+    const tp = bp + '.' + target, color = isColorTarget(target);
+    if (!color && !(target in targetRange)) { fail(tp, 'unknown binding target'); continue; }
+    if (!applicable(o as Layer, target as NumericTarget)) { fail(tp, 'binding is not applicable to this layer'); continue; }
+    if (!object(b, tp, color ? ['source', 'stops'] : ['source', 'input', 'output', 'clamp'])) continue;
+    if (typeof b.source !== 'string' || !fields.includes(b.source)) fail(tp + '.source', 'expected a declared data field');
+    if (color) {
+      if (!Array.isArray(b.stops) || b.stops.length < 1 || b.stops.length > MAX_STOPS) { fail(tp + '.stops', 'expected 1 to ' + MAX_STOPS + ' stops'); continue; }
+      b.stops.forEach((stop: unknown, i: number) => {
+        const sp = tp + '.stops[' + i + ']';
+        if (!object(stop, sp, ['at', 'value'])) return;
+        if (!isNumber(stop.at)) fail(sp + '.at', 'expected a finite number');
+        else if (i && isNumber(b.stops[i - 1]?.at) && stop.at <= b.stops[i - 1].at) fail(sp + '.at', 'stops must be strictly increasing');
+        checkColor(stop, 'value', sp);
+      });
+      continue;
+    }
+    const [lo, hi] = targetRange[target as NumericTarget];
+    if (!Array.isArray(b.input) || b.input.length !== 2 || !b.input.every(isNumber)) fail(tp + '.input', 'expected exactly two finite numbers');
+    else if (b.input[0] === b.input[1]) fail(tp + '.input', 'endpoints must differ');
+    if (!Array.isArray(b.output) || b.output.length !== 2 || !b.output.every((n: unknown) => Number.isInteger(n) && (n as number) >= lo && (n as number) <= hi))
+      fail(tp + '.output', 'expected exactly two integers from ' + lo + ' to ' + hi);
+    if (b.clamp !== undefined && typeof b.clamp !== 'boolean') fail(tp + '.clamp', 'expected true or false');
+  }
 }
 
 /* ---------- STI images ---------- */
@@ -270,19 +327,20 @@ export function expand(value: string, time: Date, data: Sample = {}): string {
   return value.replace(/\{([^}]+)\}/g, (_, key: string) => values[key] ?? data[key] ?? '--');
 }
 export const cellWidth = (size: number) => Math.ceil(size * 6 / 8);
+/* Screen rectangle of a layer after bindings. A scrolling text layer occupies its viewport. */
 export function bounds(l: Layer, assets: Assets, time: Date, data?: Sample): Rect {
+  const r = resolveLayer(l, data);
   if (l.type === 'text') {
-    const w = expand(l.value, time, data).length * cellWidth(l.size), h = l.size, a = anchors.indexOf(l.anchor ?? 'top-left');
-    return { x: l.x - Math.trunc(w * (a % 3) / 2), y: l.y - Math.trunc(h * Math.floor(a / 3) / 2), w, h };
+    const w = l.scroll ? r.scrollWidth : textPixelWidth(r.size, expand(l.value, time, data).length), a = anchors.indexOf(l.anchor ?? 'top-left');
+    return { x: r.x - Math.trunc(w * (a % 3) / 2), y: r.y - Math.trunc(r.size * Math.floor(a / 3) / 2), w, h: r.size };
   }
-  if (l.type === 'shape' && l.shape === 'circle') { const r = l.radius ?? 0; return { x: l.x - r, y: l.y - r, w: r * 2 + 1, h: r * 2 + 1 }; }
+  if (l.type === 'shape' && l.shape === 'circle') return r.radius === 0 ? { x: r.x, y: r.y, w: 0, h: 0 } : { x: r.x - r.radius, y: r.y - r.radius, w: r.radius * 2 + 1, h: r.radius * 2 + 1 };
   if (l.type === 'shape' && l.shape === 'line') {
-    const pad = Math.floor(((l.strokeWidth ?? 1) + 1) / 2), x2 = l.x2 ?? l.x, y2 = l.y2 ?? l.y;
-    return { x: Math.min(l.x, x2) - pad, y: Math.min(l.y, y2) - pad, w: Math.abs(l.x - x2) + 2 * pad + 1, h: Math.abs(l.y - y2) + 2 * pad + 1 };
+    const pad = Math.floor((r.strokeWidth + 1) / 2);
+    return { x: Math.min(r.x, r.x2) - pad, y: Math.min(r.y, r.y2) - pad, w: Math.abs(r.x - r.x2) + 2 * pad + 1, h: Math.abs(r.y - r.y2) + 2 * pad + 1 };
   }
-  const asset = l.type === 'image' ? assets.get(pathFor(l)) : null;
-  const w = asset ? asset.width : l.type === 'image' ? 0 : l.width || 0, h = asset ? asset.height : l.type === 'image' ? 0 : l.height || 0;
-  return { x: l.x, y: l.y, w, h };
+  if (l.type === 'image') { const asset = assets.get(pathFor(l)); return { x: r.x, y: r.y, w: asset?.width ?? 0, h: asset?.height ?? 0 }; }
+  return { x: r.x, y: r.y, w: r.width, h: r.height };
 }
 
 /* ---------- renderer (mirrors the firmware pixel for pixel) ---------- */
@@ -296,6 +354,24 @@ export function animationFrame(l: { fps: number; frames: number; loop: boolean }
   const n = Math.floor(elapsed * l.fps / 1000);
   return l.loop ? n % l.frames : Math.min(l.frames - 1, n);
 }
+/* The device restarts scrolling whenever the expanded text changes, for example when {SS} ticks.
+ * Returns the elapsed time at which the current text appeared (0 when it never changed). */
+function textSince(value: string, time: Date, elapsed: number, data?: Sample) {
+  const now = time.getTime(), text = expand(value, time, data);
+  let start = Math.floor(elapsed) - (((now % 1000) + 1000) % 1000);
+  while (start > 0 && expand(value, new Date(now - (Math.floor(elapsed) - start) - 1), data) === text) start -= 1000;
+  return Math.max(0, start);
+}
+/* Rounded rectangle: fill covers the rounded outline, stroke the ring down to radius - strokeWidth. */
+function rectangleHit(x: number, y: number, rx: number, ry: number, rw: number, rh: number, radius: number, sw: number) {
+  const straight = () => ({ inside: true, edge: x - rx < sw || rx + rw - x <= sw || y - ry < sw || ry + rh - y <= sw });
+  if (radius <= 0) return straight();
+  const left = x < rx + radius, right = x >= rx + rw - radius, top = y < ry + radius, bottom = y >= ry + rh - radius;
+  if (!((left || right) && (top || bottom))) return straight();
+  const cx = left ? rx + radius : rx + rw - radius - 1, cy = top ? ry + radius : ry + rh - radius - 1;
+  const dist = (x - cx) ** 2 + (y - cy) ** 2, inside = dist <= radius * radius, inner = Math.max(0, radius - sw);
+  return { inside, edge: inside && (inner === 0 || dist > inner * inner) };
+}
 export function render(theme: Theme, assets: Assets, time: Date, elapsed = 0, data?: Sample, target: Target = 'current'): Uint8ClampedArray<ArrayBuffer> {
   const errors = validate(theme, null, target);
   if (errors.length) throw Error(errors[0]);
@@ -303,36 +379,39 @@ export function render(theme: Theme, assets: Assets, time: Date, elapsed = 0, da
   output.fill(color(theme.display.background));
   for (const l of theme.layers) {
     const r = bounds(l, assets, time, data), x1 = Math.max(0, r.x), y1 = Math.max(0, r.y), x2 = Math.min(240, r.x + r.w), y2 = Math.min(240, r.y + r.h);
+    if (x1 >= x2 || y1 >= y2) continue;
+    const v = resolveLayer(l, data);
     if (l.type === 'image' || l.type === 'animation') {
       const asset = assets.get(pathFor(l, l.type === 'animation' ? animationFrame(l, elapsed) : 0));
       if (!asset) continue;
       for (let y = y1; y < y2; y++) for (let x = x1; x < x2; x++) {
-        const i = (y - l.y) * asset.width + x - l.x, at = y * 240 + x;
+        const i = (y - v.y) * asset.width + x - v.x, at = y * 240 + x;
         if (i >= 0 && i < asset.colors.length) output[at] = blend(output[at], asset.colors[i], asset.alpha[i]);
       }
       continue;
     }
     if (l.type === 'text') {
-      const text = expand(l.value, time, data), cell = cellWidth(l.size), fg = color(l.color);
+      const text = expand(l.value, time, data), cell = cellWidth(v.size), fg = color(v.color!), width = textPixelWidth(v.size, text.length);
+      const offset = l.scroll ? scrollOffset(l.scroll, v.scrollWidth, v.scrollSpeed, width, elapsed - textSince(l.value, time, elapsed, data)) : 0;
       for (let y = y1; y < y2; y++) for (let x = x1; x < x2; x++) {
-        const local = x - r.x, col = Math.floor((local % cell) * 6 / cell), row = Math.floor((y - r.y) * 8 / l.size);
-        if (col < 5 && (font[text.charCodeAt(Math.floor(local / cell)) * 5 + col] & (1 << row))) output[y * 240 + x] = fg;
+        const column = scrollColumn(l.scroll, offset, width, x - r.x);
+        if (column == null) continue;
+        const col = Math.floor((column % cell) * 6 / cell), row = Math.floor((y - r.y) * 8 / v.size);
+        if (col < 5 && (font[text.charCodeAt(Math.floor(column / cell)) * 5 + col] & (1 << row))) output[y * 240 + x] = fg;
       }
       continue;
     }
-    const sw = l.strokeWidth ?? 1, fill = l.fill ? color(l.fill) : 0, stroke = l.stroke ? color(l.stroke) : 0;
+    const fill = v.fill ? color(v.fill) : 0, stroke = v.stroke ? color(v.stroke) : 0, sw = v.strokeWidth;
     for (let y = y1; y < y2; y++) for (let x = x1; x < x2; x++) {
       let inside = false, edge = false;
-      if (l.shape === 'rectangle') {
-        const w = l.width ?? 0, h = l.height ?? 0;
-        inside = true; edge = x - l.x < sw || l.x + w - x <= sw || y - l.y < sw || l.y + h - y <= sw;
-      } else if (l.shape === 'circle') {
-        const radius = l.radius ?? 0, dx = x - l.x, dy = y - l.y, dist = dx * dx + dy * dy, inner = Math.max(0, radius - sw);
-        inside = dist <= radius * radius; edge = inside && (inner === 0 || dist > inner * inner);
+      if (l.shape === 'rectangle') ({ inside, edge } = rectangleHit(x, y, v.x, v.y, v.width, v.height, v.cornerRadius, sw));
+      else if (l.shape === 'circle') {
+        const dx = x - v.x, dy = y - v.y, dist = dx * dx + dy * dy, inner = Math.max(0, v.radius - sw);
+        inside = dist <= v.radius * v.radius; edge = inside && (inner === 0 || dist > inner * inner);
       } else {
-        const lx2 = l.x2 ?? l.x, ly2 = l.y2 ?? l.y, dx = lx2 - l.x, dy = ly2 - l.y, px = x - l.x, py = y - l.y, len = dx * dx + dy * dy, dot = px * dx + py * dy;
+        const dx = v.x2 - v.x, dy = v.y2 - v.y, px = x - v.x, py = y - v.y, len = dx * dx + dy * dy, dot = px * dx + py * dy;
         if (dot <= 0 || len === 0) inside = 4 * (px * px + py * py) <= sw * sw;
-        else if (dot >= len) inside = 4 * ((x - lx2) ** 2 + (y - ly2) ** 2) <= sw * sw;
+        else if (dot >= len) inside = 4 * ((x - v.x2) ** 2 + (y - v.y2) ** 2) <= sw * sw;
         else inside = 4 * (px * dy - py * dx) ** 2 <= sw * sw * len;
         edge = inside;
       }
