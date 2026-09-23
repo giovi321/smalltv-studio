@@ -19,6 +19,34 @@ The editor produces packages only. The device side, meaning the parser, the rend
 
 Under development. No release yet.
 
+## Run locally
+
+Needs Node.js 20.19 or newer and Python 3.
+
+```sh
+npm install
+npm run build          # builds dist/index.html, a single self-contained file
+python3 serve.py       # open http://localhost:4173/
+```
+
+`serve.py` is a small static server (stdlib only, 127.0.0.1) that also lets the editor talk to your TV. `dist/index.html` also works opened straight from disk, except for reading the TV's answers. Nothing leaves your machine except what you explicitly send to your own TV.
+
+For development, run `npm run dev` for the hot-reloading editor, and `python3 serve.py` next to it if you want to use Send to TV.
+
+## Features
+
+- **Layers**: text, image, animation and shape (rectangle, circle, line) layers, up to 32. Thumbnails, drag-and-drop reordering, double-click rename, and editor-only hide/lock flags (never exported).
+- **Canvas**: 240×240 live preview with pixel-perfect zoom (Fit, 100–500 %), graduated rulers, pixel grid, smart guides and snapping (hold Alt to bypass), handles for every layer type (resize images, rectangles, circles, line endpoints and text size; Shift keeps the aspect ratio), right-click actions and keyboard nudging.
+- **Inspector**: grouped sections, hex + picker colors, 3×3 text anchor, align-to-screen, clock and data variable chips, aspect-locked resizing (nearest-neighbour, resampled from the original pixels).
+- **Data sources**: up to 4 JSON sources with up to 8 fields each (`{source.field}` variables), including the `insecureTls` acknowledgement the firmware requires for HTTPS. The **Device firmware** switch (Latest / Older, remembered in your browser) matches the firmware you flashed: firmware from before `0866a70` rejects `insecureTls` as an unknown field, newer firmware requires it for HTTPS. Renaming a source or field rewrites the text that uses it. Preview values are editor-only; *Fetch live values* fills them from the URL when the server allows browser requests.
+- **Theme tab**: metadata, background, and a live budget for package size, manifest size, layers, entries and data sources.
+- **Import / export**: `.stheme`, `theme.json`, or a source folder; drop files anywhere on the page (images become image layers, several become an animation). Oversized images are scaled to fit 240×240. Export `.stheme` (Ctrl/Cmd S), manifest only, or a PNG of the preview.
+- **Send to TV**: type the TV's IP and the theme is installed on a SmallTV Pro through its API, then optionally activated. It checks the TV first (firmware, installed themes, free space), can replace an existing theme with the same ID, supports the TV's optional password, and shows the TV's own error messages. Started with `serve.py`, answers are fully visible; otherwise (plain static server or `dist/index.html` opened from disk) it sends blindly because the firmware has no CORS headers. The relay only forwards the firmware's theme routes to private-network addresses.
+- **Examples**: Pixel Room and Terminal Ops, taken from the firmware repository.
+- **Validation**: every issue is listed, and clicking one jumps to the layer or the Data tab.
+
+Press `?` in the editor for the keyboard shortcuts.
+
 ## Theme format
 
 The `.stheme` format is defined by the smalltv-mod firmware and its packing and validation tools. The format and the tools are in review in [smalltv-mod pull request #15](https://github.com/giovi321/smalltv-mod/pull/15). A package built here has to pass that validator unchanged, so a theme that the editor accepts also installs on the device.
@@ -29,7 +57,38 @@ The `.stheme` format is defined by the smalltv-mod firmware and its packing and 
 2. Open the device's web UI and go to the Display tab
 3. Upload the file under the theme section and select it
 
+Or use **Send to TV** in the editor, which installs it through the device API (see above).
+
 An installed theme can make the device poll any URL listed in its manifest, including addresses on your LAN. Install themes only from sources you trust.
+
+## Tests
+
+```sh
+npm test               # core tests (Vitest)
+npm run typecheck
+```
+
+The core is checked against the firmware package format, including data sources and both example packages: they must unpack and pack back byte for byte. Exported packages can also be validated with the firmware's own C++ validator:
+
+```sh
+python3 ../smalltv-mod/tools/smalltv_theme.py validate my-theme.stheme
+```
+
+## Layout
+
+The editor is written in TypeScript with React, built by Vite.
+
+| Path | Role |
+| --- | --- |
+| `src/core/` | Manifest types, validation, package codec, RGB565 renderer and bitmap font (no DOM) |
+| `src/store/studio.ts` | State (zustand), undo history, layer and data-source actions |
+| `src/device/device.ts` | Theme API client (relay or direct transport) |
+| `src/lib/files.ts` | Import, export and bundled examples |
+| `src/components/` | React UI: top bar, layers / theme / data tabs, stage, inspector, Send to TV |
+| `src/App.tsx` | Layout, keyboard shortcuts, file drops, playback clock |
+| `test/` | Core tests |
+| `fixtures/` | Example packages, bundled into the editor |
+| `serve.py` | Local static server and TV relay |
 
 ## Maintainers
 
