@@ -20,7 +20,14 @@ type Guides = { x: number[]; y: number[] };
 interface DragState { mode: HandleKey | 'move'; start: Point; bounds: Rect; dims: { width: number; height: number }; session: S.DragSession; moved: boolean }
 
 /* ---------- geometry ---------- */
+/* A handle edits the static value; it is hidden when a data binding drives that property. */
 function handlesOf(l: Layer, r: Rect): Handle[] {
+  const bound = (...keys: string[]) => keys.some(k => l.bind && k in l.bind);
+  return allHandles(l, r).filter(h => !(
+    (h.key === 'corner' && bound('width', 'height')) || (h.key === 'radius' && bound('radius')) || (h.key === 'text-size' && bound('size')) ||
+    (h.key === 'p1' && bound('x', 'y')) || (h.key === 'p2' && bound('x2', 'y2'))));
+}
+function allHandles(l: Layer, r: Rect): Handle[] {
   if (l.type === 'image' || l.type === 'animation') return [{ key: 'corner', x: r.x + r.w, y: r.y + r.h, cursor: 'nwse-resize' }];
   if (l.type === 'text') {
     const a = C.anchors.indexOf(l.anchor ?? 'top-left'), col = (a % 3) / 2, row = Math.floor(a / 3) / 2;

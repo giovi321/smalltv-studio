@@ -13,14 +13,14 @@ export function Field({ label, hint, children }: { label: ReactNode; hint?: Reac
 }
 
 /* Shows the store value, except while focused: the user's draft wins, so typing "48" never bounces through "4". */
-export function NumberInput({ value, onValue, min = -240, max = 479, unit = 'px', id }: {
-  value: number | undefined; onValue: (v: number) => void; min?: number; max?: number; unit?: string; id?: string;
+export function NumberInput({ value, onValue, min = -240, max = 479, unit = 'px', id, step = 1, label }: {
+  value: number | undefined; onValue: (v: number) => void; min?: number; max?: number; unit?: string; id?: string; step?: number | 'any'; label?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <span className="input-unit">
       <input
-        type="number" id={id} min={min} max={max} step={1}
+        type="number" id={id} min={min} max={max} step={step} aria-label={label}
         value={draft ?? (value ?? '')}
         onChange={e => { setDraft(e.target.value); const v = e.target.valueAsNumber; if (Number.isFinite(v)) onValue(v); }}
         onBlur={() => setDraft(null)}

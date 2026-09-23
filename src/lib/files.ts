@@ -3,12 +3,19 @@ import * as C from '../core/core';
 import type { Asset, Assets, Theme } from '../core/types';
 import pixelRoom from '../../fixtures/pixel-room.stheme';
 import terminalOps from '../../fixtures/terminal-ops.stheme';
+import liveStatus from '../../fixtures/live-status.stheme';
 import * as S from '../store/studio';
 
-export const EXAMPLES = {
+interface Example { name: string; blurb: string; data: string; sample?: Record<string, string> }
+export const EXAMPLES: Record<'pixel-room' | 'terminal-ops' | 'live-status', Example> = {
   'pixel-room': { name: 'Pixel Room', blurb: 'Image, animated cat, clock and date', data: pixelRoom },
   'terminal-ops': { name: 'Terminal Ops', blurb: 'Dense text and line dashboard', data: terminalOps },
-} as const;
+  'live-status': {
+    name: 'Live Status', blurb: 'Scrolling text and a bar driven by live data', data: liveStatus,
+    // The firmware's own preview values for this example.
+    sample: { 'status.label': 'SmallTV dynamic dashboard headline', 'status.level': '82', 'status.state': 'Warning' },
+  },
+};
 export type ExampleId = keyof typeof EXAMPLES;
 
 const IMAGE_RE = /\.(png|jpe?g|webp)$/i;
@@ -122,6 +129,7 @@ export async function openFolder(files: File[]) {
 export function loadExample(id: ExampleId) {
   const bytes = Uint8Array.from(atob(EXAMPLES[id].data), c => c.charCodeAt(0));
   S.load(C.unpack(bytes, 'current'), EXAMPLES[id].name + ' loaded. Edit its layers to make it yours.');
+  for (const [key, value] of Object.entries(EXAMPLES[id].sample ?? {})) S.setSample(key, value);
 }
 export async function openPackageDialog() {
   const [file] = await pickFiles({ accept: '.stheme,.json' });

@@ -60,3 +60,20 @@ describe('studio store', () => {
     expect([text(0).x, text(0).y]).toEqual([479, -240]);
   });
 });
+
+describe('bindings in the store', () => {
+  beforeEach(() => { S.setTarget('current'); S.load(S.blankProject()); });
+  it('follow data field renames and drop when no longer applicable', () => {
+    S.addSource();
+    S.edit(d => { d.theme.data![0].url = 'http://192.168.1.2/x.json'; });
+    S.addLayer('shape');
+    const index = state().selected;
+    S.setBinding(index, 'fill', { source: 'source1.value', stops: [{ at: 0, value: '#ff0000' }] });
+    expect(state().problems).toEqual([]);
+    S.edit(d => { d.theme.data![0].fields[0].id = 'level'; S.renameDataRef(d, 'source1.value', 'source1.level'); });
+    expect(state().theme.layers[index].bind?.fill?.source).toBe('source1.level');
+    S.edit(d => { const l = d.theme.layers[index]; if (l.type === 'shape') { l.stroke = '#ffffff'; delete l.fill; } S.pruneBindings(l); });
+    expect(state().theme.layers[index].bind).toBeUndefined();
+    expect(state().problems).toEqual([]);
+  });
+});

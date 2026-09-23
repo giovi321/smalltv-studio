@@ -1,4 +1,4 @@
-/* Client for the SmallTV Pro theme API. No DOM access.
+/* Client for the SmallTV theme API (smalltv-mod firmware). No DOM access.
  *
  * Two transports:
  *  - "relay":  through serve.py, which can read the device's answers (recommended).

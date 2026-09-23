@@ -36,7 +36,7 @@ export function TopBar({ onSend }: { onSend: () => void }) {
           <MenuItem title="Source folder" detail="theme.json with its images" onClick={F.openFolderDialog} />
         </Menu>
 
-        <button type="button" title="Install the theme on a SmallTV Pro over your network" disabled={busy || !ready} onClick={onSend}>
+        <button type="button" title="Install the theme on your SmallTV over the network" disabled={busy || !ready} onClick={onSend}>
           <Icon name="send" />Send to TV
         </button>
 

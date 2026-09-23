@@ -54,7 +54,7 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
     let fix: Target | null = null, body: ReactNode = text;
     if (/insecureTls: unknown field/i.test(text)) fix = 'legacy';
     else if (/insecureTls: set true/i.test(text)) fix = 'current';
-    else if (e.status === 404 && /not found|Cannot GET/i.test(text)) body = 'This TV firmware has no theme support. Themes need a SmallTV Pro (8 MB ESP32).';
+    else if (e.status === 404 && /not found|Cannot GET/i.test(text)) body = 'This TV firmware has no theme support. Update it to a smalltv-mod release with theme clocks (the lean build has none).';
     say(<>
       <span><strong>Not sent. </strong>{body}</span>
       {fix && <p>{fix === 'legacy' ? 'Your TV runs an older firmware that does not know this field.' : 'Your TV runs a newer firmware that requires this field.'}</p>}
@@ -138,7 +138,7 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
     <dialog ref={dialog} className="send-dialog" aria-labelledby="send-title" onClose={onClose}>
       <form method="dialog" noValidate onSubmit={e => { e.preventDefault(); void go(); }}>
         <header>
-          <h2 id="send-title">Send to SmallTV Pro</h2>
+          <h2 id="send-title">Send to SmallTV</h2>
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
         </header>
         <div className="send-body">

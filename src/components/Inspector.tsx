@@ -1,10 +1,12 @@
 /* Right panel: properties of the selected layer, and the problems that block exporting. */
 import { useRef, useState } from 'react';
 import * as C from '../core/core';
-import type { AnimationLayer, Assets, ImageLayer, Layer, ShapeKind, ShapeLayer, TextLayer } from '../core/types';
+import { textPixelWidth } from '../core/dynamic';
+import type { AnimationLayer, Assets, ImageLayer, Layer, Scroll, ShapeKind, ShapeLayer, TextLayer } from '../core/types';
 import * as F from '../lib/files';
 import * as S from '../store/studio';
 import { useStudio } from '../store/studio';
+import { BindingsSection } from './Bindings';
 import { Check, ColorInput, Field, NumberInput, Section, Segmented } from './controls';
 import { Icon } from './Icon';
 
@@ -52,6 +54,7 @@ function PositionSection({ layer }: { layer: Layer }) {
     <Section title="Position">
       <div className="field-grid"><Field label={line ? 'Start X' : 'X'}>{num('x')}</Field><Field label={line ? 'Start Y' : 'Y'}>{num('y')}</Field></div>
       {line && <div className="field-grid"><Field label="End X">{num('x2')}</Field><Field label="End Y">{num('y2')}</Field></div>}
+      {layer.bind && ['x', 'y', 'x2', 'y2'].some(k => k in layer.bind!) && <p className="hint">Bound coordinates follow the data; the values here are the fallback used until a value arrives.</p>}
       <div className="field">
         <span className="field-label">Align to screen</span>
         <div className="align-row" role="group" aria-label="Align to screen">
@@ -118,7 +121,46 @@ function TextSections({ layer }: { layer: TextLayer }) {
         </div>
         <p className="hint">Built-in bitmap font: printable ASCII only. Weekday and month names are English.</p>
       </Section>
+      <ScrollSection layer={layer} />
     </>
+  );
+}
+
+function ScrollSection({ layer }: { layer: TextLayer }) {
+  const scroll = layer.scroll, sample = useStudio(s => s.sample), baseTime = useStudio(s => s.baseTime);
+  const textWidth = textPixelWidth(layer.size, C.expand(layer.value, new Date(baseTime), sample).length);
+  const setScroll = (patch: Partial<Scroll>, key = '') => editLayer<TextLayer>(l => {
+    const next = { ...l.scroll!, ...patch } as Scroll;
+    if (next.mode === 'bounce') delete next.gap;
+    for (const k of ['pause', 'gap'] as const) if (k in patch && patch[k] === undefined) delete next[k];
+    l.scroll = next;
+  }, key && layer.id + ':scroll:' + key);
+  const toggle = (on: boolean) => editLayer<TextLayer>(l => {
+    if (on) l.scroll = { width: Math.max(24, Math.min(200, Math.floor(textWidth / 2) || 120)), mode: 'loop', speed: 30 };
+    else delete l.scroll;
+    S.pruneBindings(l);
+  });
+  return (
+    <Section title="Scrolling">
+      <Check label="Scroll inside a fixed-width viewport" checked={!!scroll} onChange={toggle} />
+      {scroll ? (
+        <>
+          <Segmented options={[['loop', 'Loop'], ['bounce', 'Bounce']] as const} value={scroll.mode} onPick={mode => setScroll({ mode })} label="Scroll mode" />
+          <div className="field-grid">
+            <Field label="Viewport width"><NumberInput id="field-scroll-width" value={scroll.width} min={1} max={240} onValue={width => setScroll({ width }, 'width')} /></Field>
+            <Field label="Speed"><NumberInput value={scroll.speed} min={1} max={240} unit="px/s" onValue={speed => setScroll({ speed }, 'speed')} /></Field>
+          </div>
+          <div className="field-grid">
+            <Field label="Pause"><NumberInput value={scroll.pause ?? 1000} min={0} max={10000} unit="ms" onValue={pause => setScroll({ pause }, 'pause')} /></Field>
+            {scroll.mode === 'loop' && <Field label="Gap"><NumberInput value={scroll.gap ?? 24} min={0} max={240} onValue={gap => setScroll({ gap }, 'gap')} /></Field>}
+          </div>
+          <p className="hint">
+            {textWidth > scroll.width ? 'The text is ' + textWidth + ' px wide, so it scrolls.' : 'The text is ' + textWidth + ' px wide and fits: it stays still.'}
+            {' '}X, Y and the anchor place the viewport. The device restarts the scroll whenever the text changes, for example every second with {'{SS}'}.
+          </p>
+        </>
+      ) : <p className="hint">Long text is clipped at the edge of the screen unless it scrolls.</p>}
+    </Section>
   );
 }
 
@@ -127,7 +169,7 @@ function OptionalColor({ layer, prop, label }: { layer: ShapeLayer; prop: 'fill'
   if (layer[prop]) last.current = layer[prop]!;
   return (
     <div className="field">
-      <Check label={label} checked={on} id={'enable-' + prop} onChange={checked => editLayer<ShapeLayer>(l => { if (checked) l[prop] = last.current; else delete l[prop]; })} />
+      <Check label={label} checked={on} id={'enable-' + prop} onChange={checked => editLayer<ShapeLayer>(l => { if (checked) l[prop] = last.current; else delete l[prop]; S.pruneBindings(l); })} />
       <ColorInput value={layer[prop] ?? last.current} label={label} id={'field-' + prop} disabled={!on} onValue={v => editLayer<ShapeLayer>(l => { l[prop] = v; }, layer.id + ':' + prop)} />
     </div>
   );
@@ -137,11 +179,12 @@ function ShapeSections({ layer }: { layer: ShapeLayer }) {
   const setShape = (shape: ShapeKind) => {
     if (shape === layer.shape) return;
     editLayer<ShapeLayer>(l => {
-      for (const key of ['width', 'height', 'radius', 'x2', 'y2'] as const) delete l[key];
+      for (const key of ['width', 'height', 'radius', 'cornerRadius', 'x2', 'y2'] as const) delete l[key];
       l.shape = shape;
       if (shape === 'rectangle') { Object.assign(l, { width: 100, height: 50 }); if (l.fill == null && l.stroke == null) l.fill = '#547875'; }
       else if (shape === 'circle') { l.radius = 40; if (l.fill == null && l.stroke == null) l.fill = '#547875'; }
       else { delete l.fill; Object.assign(l, { x2: Math.min(479, l.x + 80), y2: l.y, stroke: l.stroke || '#ffffff', strokeWidth: l.strokeWidth || 1 }); }
+      S.pruneBindings(l);
     });
   };
   const size = (key: 'width' | 'height' | 'radius', label: string) => (
@@ -152,6 +195,12 @@ function ShapeSections({ layer }: { layer: ShapeLayer }) {
       <Section title="Shape">
         <Segmented options={[['rectangle', 'Rectangle', 'rect'], ['circle', 'Circle', 'circle'], ['line', 'Line', 'line']] as const} value={layer.shape} onPick={setShape} label="Shape type" />
         {layer.shape === 'rectangle' && <div className="field-grid">{size('width', 'Width')}{size('height', 'Height')}</div>}
+        {layer.shape === 'rectangle' && (
+          <Field label="Corner radius" hint="Limited to half the shorter side.">
+            <NumberInput id="field-cornerRadius" value={layer.cornerRadius ?? 0} min={0} max={120}
+              onValue={v => editLayer<ShapeLayer>(l => { if (v) l.cornerRadius = v; else delete l.cornerRadius; }, layer.id + ':cornerRadius')} />
+          </Field>
+        )}
         {layer.shape === 'circle' && <div className="field-grid">{size('radius', 'Radius')}</div>}
       </Section>
       <Section title="Colors">
@@ -250,6 +299,7 @@ export function Inspector() {
             <LayerSection layer={layer} index={index} />
             <PositionSection layer={layer} />
             {layer.type === 'text' ? <TextSections layer={layer} /> : layer.type === 'shape' ? <ShapeSections layer={layer} /> : <AssetSections layer={layer} />}
+            <BindingsSection layer={layer} index={index} />
             <ArrangeSection index={index} />
           </div>
         )}

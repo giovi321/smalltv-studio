@@ -33,8 +33,10 @@ function drawThumb(c: HTMLCanvasElement, l: Layer, assets: Assets, background: s
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Aa', size / 2, size / 2 + 1);
   } else if (l.shape === 'rectangle') {
     const d = fit(l.width || 1, l.height || 1), x = (size - d.w) / 2, y = (size - d.h) / 2;
-    if (l.fill) { g.fillStyle = l.fill; g.fillRect(x, y, d.w, d.h); }
-    if (l.stroke) { g.strokeStyle = l.stroke; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, d.w - 2, d.h - 2); }
+    const k = d.w / (l.width || 1), radius = Math.min((l.cornerRadius ?? 0) * k, d.w / 2, d.h / 2);
+    g.beginPath(); g.roundRect(x + 1, y + 1, d.w - 2, d.h - 2, radius);
+    if (l.fill) { g.fillStyle = l.fill; g.fill(); }
+    if (l.stroke) { g.strokeStyle = l.stroke; g.lineWidth = 2; g.stroke(); }
   } else if (l.shape === 'circle') {
     g.beginPath(); g.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2);
     if (l.fill) { g.fillStyle = l.fill; g.fill(); }
