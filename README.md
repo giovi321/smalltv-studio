@@ -17,7 +17,7 @@ The editor produces packages only. The device side, meaning the parser, the rend
 
 ## Status
 
-Under development. No release yet.
+Early development. The current release is listed on the [releases page](https://github.com/giovi321/smalltv-studio/releases). Each release names the smalltv-mod release its exports were validated against.
 
 ## Run locally
 
