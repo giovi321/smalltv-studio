@@ -8,8 +8,9 @@
 export type Transport = 'relay' | 'direct';
 export interface Auth { user: string; pass: string }
 export interface DeviceStatus { variant?: string; version?: string }
-export interface InstalledTheme { id: string; valid?: boolean }
-export interface ThemeList { themes?: InstalledTheme[]; freeBytes?: number; selected?: string }
+export interface InstalledTheme { id: string; name?: string; author?: string; version?: string; bytes?: number; valid?: boolean; error?: string }
+/* `selected` is the saved theme ID; `error` is the renderer's current error, if any. */
+export interface ThemeList { themes?: InstalledTheme[]; freeBytes?: number; selected?: string; error?: string }
 
 const GUARD = { 'X-SmallTV-Studio': '1' };
 const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(:\d{1,5})?$/;

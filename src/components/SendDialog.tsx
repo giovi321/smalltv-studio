@@ -5,6 +5,7 @@ import * as S from '../store/studio';
 import { useStudio } from '../store/studio';
 import { Check } from './controls';
 import { Icon, type IconName } from './Icon';
+import { InstalledThemes } from './InstalledThemes';
 
 const HOST_KEY = 'smalltv-studio:host', RESERVE = 16384;   // the firmware keeps 16 KiB free for settings
 const kib = (n: number) => (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KiB';
@@ -170,6 +171,11 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 {device.list.selected && <span>active: {device.list.selected}</span>}
               </div>
               {same && <p className="hint warn">A theme with the ID “{theme.theme.id}” is already installed{same.valid === false ? ' (invalid)' : ''}. Tick “Replace” to overwrite it.</p>}
+              <details className="send-auth">
+                <summary>Installed themes ({device.list.themes?.length ?? 0})</summary>
+                <InstalledThemes host={device.host} list={device.list} auth={auth} current={theme.theme.id} say={say}
+                  onChanged={() => check({ quiet: true, showSteps: false })} />
+              </details>
             </div>
           )}
           <Check label="Use this theme on the TV after installing" checked={activate} onChange={setActivate} />
