@@ -82,3 +82,11 @@ describe('data sources', () => {
     expect(C.render(withData, terminal.assets, time, 0, { 'weather.city': 'Paris', 'weather.temp': '21' }).length).toBe(240 * 240 * 4);
   });
 });
+
+describe('unsynchronized clock', () => {
+  it('shows -- for clock variables but keeps data values', () => {
+    expect(C.expand('{HH}:{MM} {w.t}C', null, { 'w.t': '21' })).toBe('--:-- 21C');
+    const project = C.unpack(new Uint8Array(readFileSync(new URL('../fixtures/terminal-ops.stheme', import.meta.url))));
+    expect(C.render(project.theme, project.assets, null, 0).length).toBe(240 * 240 * 4);
+  });
+});
