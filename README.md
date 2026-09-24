@@ -52,7 +52,7 @@ Press `?` in the editor for the keyboard shortcuts.
 
 ## Theme format
 
-The `.stheme` format is defined by the smalltv-mod firmware and its packing and validation tools. The format and the tools are in review in [smalltv-mod pull request #15](https://github.com/giovi321/smalltv-mod/pull/15). A package built here has to pass that validator unchanged, so a theme that the editor accepts also installs on the device.
+The `.stheme` format is defined by the smalltv-mod firmware and its packing and validation tools. The format is documented on the [theme clocks page](https://giovi321.github.io/smalltv-mod/features/themes/) of the smalltv-mod docs. A package built here has to pass that validator unchanged, so a theme that the editor accepts also installs on the device.
 
 ## Installing a theme on the device
 
