@@ -82,8 +82,6 @@ export const previewTime = (s: Pick<StudioState, 'baseTime' | 'elapsed'> = get()
 export const deviceTime = (s: Pick<StudioState, 'baseTime' | 'elapsed' | 'synced'> = get()) => (s.synced ? previewTime(s) : null);
 export const layerBounds = (l: Layer, s: StudioState = get()): Rect => C.bounds(l, s.assets, deviceTime(s), s.sample);
 export const sources = (s: StudioState = get()): DataSource[] => s.theme.data ?? [];
-export const isHidden = (l: Layer, s: StudioState = get()) => s.hidden.has(l.id);
-export const isLocked = (l: Layer, s: StudioState = get()) => s.locked.has(l.id);
 export function referenced(theme: Theme): Set<string> {
   return new Set(theme.layers.flatMap(C.framePaths));
 }
