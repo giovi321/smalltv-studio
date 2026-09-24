@@ -4,7 +4,18 @@
   "version": "0.0.0",
   "description": "Offline theme editor for smalltv-mod .stheme clock faces",
   "license": "WTFPL",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/giovi321/smalltv-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/giovi321/smalltv-studio/issues"
+  },
+  "homepage": "https://github.com/giovi321/smalltv-studio#readme",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
