@@ -316,8 +316,10 @@ export function pack(theme: Theme, assets: Assets): Uint8Array<ArrayBuffer> {
 
 /* ---------- text and geometry ---------- */
 export type Sample = Record<string, string>;
-/* Expands clock and data variables. The device clock runs in local time, which the preview models as UTC. */
-export function expand(value: string, time: Date, data: Sample = {}): string {
+/* Expands clock and data variables. The device clock runs in local time, which the preview models as UTC.
+ * `time` is null while the device clock is not synchronized: clock variables then show "--". */
+export function expand(value: string, time: Date | null, data: Sample = {}): string {
+  if (!time) return value.replace(/\{([^}]+)\}/g, (_, key: string) => data[key] ?? '--');
   const pad = (n: number) => String(n).padStart(2, '0'), h = time.getUTCHours(), month = months[time.getUTCMonth()], day = days[time.getUTCDay()];
   const values: Record<string, string> = {
     HH: pad(h), hh: pad(h % 12 || 12), MM: pad(time.getUTCMinutes()), SS: pad(time.getUTCSeconds()), DD: pad(time.getUTCDate()),
@@ -327,7 +329,7 @@ export function expand(value: string, time: Date, data: Sample = {}): string {
 }
 export const cellWidth = (size: number) => Math.ceil(size * 6 / 8);
 /* Screen rectangle of a layer after bindings. A scrolling text layer occupies its viewport. */
-export function bounds(l: Layer, assets: Assets, time: Date, data?: Sample): Rect {
+export function bounds(l: Layer, assets: Assets, time: Date | null, data?: Sample): Rect {
   const r = resolveLayer(l, data);
   if (l.type === 'text') {
     const w = l.scroll ? r.scrollWidth : textPixelWidth(r.size, expand(l.value, time, data).length), a = anchors.indexOf(l.anchor ?? 'top-left');
@@ -355,7 +357,8 @@ export function animationFrame(l: { fps: number; frames: number; loop: boolean }
 }
 /* The device restarts scrolling whenever the expanded text changes, for example when {SS} ticks.
  * Returns the elapsed time at which the current text appeared (0 when it never changed). */
-function textSince(value: string, time: Date, elapsed: number, data?: Sample) {
+function textSince(value: string, time: Date | null, elapsed: number, data?: Sample) {
+  if (!time) return 0;
   const now = time.getTime(), text = expand(value, time, data);
   let start = Math.floor(elapsed) - (((now % 1000) + 1000) % 1000);
   while (start > 0 && expand(value, new Date(now - (Math.floor(elapsed) - start) - 1), data) === text) start -= 1000;
@@ -371,7 +374,7 @@ function rectangleHit(x: number, y: number, rx: number, ry: number, rw: number, 
   const dist = (x - cx) ** 2 + (y - cy) ** 2, inside = dist <= radius * radius, inner = Math.max(0, radius - sw);
   return { inside, edge: inside && (inner === 0 || dist > inner * inner) };
 }
-export function render(theme: Theme, assets: Assets, time: Date, elapsed = 0, data?: Sample): Uint8ClampedArray<ArrayBuffer> {
+export function render(theme: Theme, assets: Assets, time: Date | null, elapsed = 0, data?: Sample): Uint8ClampedArray<ArrayBuffer> {
   const errors = validate(theme, null);
   if (errors.length) throw Error(errors[0]);
   const output = new Uint16Array(240 * 240);

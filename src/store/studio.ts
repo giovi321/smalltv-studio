@@ -31,6 +31,7 @@ export interface StudioState {
   playing: boolean;
   elapsed: number;
   baseTime: number;
+  synced: boolean;              // preview only: false shows the device before its first NTP sync
   snap: boolean;
   grid: boolean;
   tab: Tab;
@@ -69,7 +70,7 @@ export const useStudio = create<StudioState>()(() => ({
   hidden: new Set(), locked: new Set(), sample: {},
   ...analyze(initial.theme, initial.assets),
   history: [], future: [],
-  playing: true, elapsed: 0, baseTime: localNow(), snap: true, grid: false, tab: 'layers',
+  playing: true, elapsed: 0, baseTime: localNow(), synced: true, snap: true, grid: false, tab: 'layers',
   notice: { message: 'Nothing is ever uploaded. Files stay in your browser.', error: false, serial: 0 },
 }));
 const get = useStudio.getState, set = useStudio.setState;
@@ -77,7 +78,9 @@ const get = useStudio.getState, set = useStudio.setState;
 /* ---------- derived helpers ---------- */
 export const selectedLayer = (s: StudioState = get()): Layer | null => s.theme.layers[s.selected] ?? null;
 export const previewTime = (s: Pick<StudioState, 'baseTime' | 'elapsed'> = get()) => new Date(s.baseTime + Math.floor(s.elapsed));
-export const layerBounds = (l: Layer, s: StudioState = get()): Rect => C.bounds(l, s.assets, previewTime(s), s.sample);
+/* The time the device would use, or null while its clock is not synchronized. */
+export const deviceTime = (s: Pick<StudioState, 'baseTime' | 'elapsed' | 'synced'> = get()) => (s.synced ? previewTime(s) : null);
+export const layerBounds = (l: Layer, s: StudioState = get()): Rect => C.bounds(l, s.assets, deviceTime(s), s.sample);
 export const sources = (s: StudioState = get()): DataSource[] => s.theme.data ?? [];
 export const isHidden = (l: Layer, s: StudioState = get()) => s.hidden.has(l.id);
 export const isLocked = (l: Layer, s: StudioState = get()) => s.locked.has(l.id);
@@ -91,7 +94,7 @@ export function layerDimensions(l: Layer, assets: Assets = get().assets): { widt
 }
 export function renderFrame(s: StudioState = get()) {
   const theme = { ...s.theme, layers: s.theme.layers.filter(l => !s.hidden.has(l.id)) };
-  return C.render(theme, s.assets, previewTime(s), Math.floor(s.elapsed), s.sample);
+  return C.render(theme, s.assets, deviceTime(s), Math.floor(s.elapsed), s.sample);
 }
 export function budget(theme: Theme, packed: Uint8Array | null) {
   return {
@@ -364,6 +367,7 @@ export async function fetchSample(i: number): Promise<number> {
 /* ---------- view state ---------- */
 export const setTab = (tab: Tab) => set({ tab });
 export const toggleGrid = () => set(s => ({ grid: !s.grid }));
+export const toggleSynced = () => set(s => ({ synced: !s.synced }));
 export const toggleSnap = () => set(s => ({ snap: !s.snap }));
 export const setBaseTime = (baseTime: number) => set({ baseTime });
 
