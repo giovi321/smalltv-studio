@@ -1,11 +1,12 @@
 /* Renders themes with the firmware's own C++ engine and compares every frame with the studio's renderer.
  * Runs when SMALLTV_MOD points at a smalltv-mod checkout whose native theme tool can build. */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as C from '../src/core/core';
+import { sourceFiles } from '../src/core/source';
 import type { Theme } from '../src/core/types';
 
 const firmware = process.env.SMALLTV_MOD;
@@ -117,5 +118,20 @@ describe.skipIf(!firmware)('parity with the firmware renderer', () => {
     compare('dynamic', bytes, { 'd.a': '73.5', 'd.b': '0.5', 'd.bad': '12px', 'd.text': 'Hello' });
     compare('dynamic-fallback', bytes);
     compare('dynamic-low', bytes, { 'd.a': ' -20 ', 'd.b': '1e0', 'd.text': '' });
+  }, 120000);
+  it('exports source folders the firmware packer rebuilds byte for byte', async () => {
+    const accented = C.unpack(fixture('pixel-room'));
+    accented.theme.theme.name = 'Pièce pixel ☕';
+    const cases: [string, C.Unpacked][] = [['pixel-room', C.unpack(fixture('pixel-room'))], ['live-status', C.unpack(fixture('live-status'))],
+      ['dynamic', { theme: dynamic, assets: new Map() }], ['accented', accented]];
+    for (const [name, { theme, assets }] of cases) {
+      const dir = mkdtempSync(join(tmpdir(), 'smalltv-source-')), out = join(dir, 'built.stheme');
+      for (const [path, data] of await sourceFiles(theme, assets)) {
+        mkdirSync(dirname(join(dir, name, path)), { recursive: true });
+        writeFileSync(join(dir, name, path), data);
+      }
+      execFileSync('python3', ['tools/smalltv_theme.py', 'build', join(dir, name), out], { cwd: firmware, stdio: 'pipe' });
+      expect(new Uint8Array(readFileSync(out)), name).toEqual(C.pack(theme, assets));
+    }
   }, 120000);
 });

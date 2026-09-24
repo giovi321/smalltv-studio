@@ -18,6 +18,10 @@ export const pathOK = (s: unknown): s is string =>
 const rgb565 = (r: number, g: number, b: number) => ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
 const color = (s: string) => { const n = parseInt(s.slice(1), 16); return rgb565(n >> 16, (n >> 8) & 255, n & 255); };
 export const bytesOf = (s: string) => encoder.encode(s).length;
+/* The packaged theme.json: compact, with non-ASCII escaped, exactly like the firmware's
+ * tools/theme_pack.py (json.dumps with ensure_ascii), so both produce identical packages. */
+export const manifestJson = (theme: unknown) =>
+  JSON.stringify(theme).replace(/[\u0080-\uffff]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 
 // Manifest sources are logical source paths (for example images/logo.png).
 // The editor stores compiled STI entries separately. Accepting a pasted STI
@@ -74,7 +78,7 @@ export function validate(theme: unknown, assets: Assets | null = null): string[]
   const checkColor = (o: Loose, k: string, p: string) => { if (typeof o[k] !== 'string' || !/^#[0-9a-f]{6}$/i.test(o[k])) fail(p + '.' + k, 'expected #RRGGBB'); };
 
   if (!object(theme, 'theme.json', ['spec', 'theme', 'display', 'layers', 'data'])) return errors;
-  if (bytesOf(JSON.stringify(theme)) > MAX_MANIFEST) fail('theme.json', 'exceeds 16 KiB');
+  if (manifestJson(theme).length > MAX_MANIFEST) fail('theme.json', 'exceeds 16 KiB');
   if (depth(theme) > 8) fail('theme.json', 'exceeds 8 levels of nesting');
   if (theme.spec !== 1) fail('spec', 'expected 1');
   if (object(theme.theme, 'theme', ['id', 'name', 'author', 'version'])) {
@@ -266,7 +270,8 @@ export function assetRGBA(asset: Asset): Uint8ClampedArray<ArrayBuffer> {
 }
 
 /* ---------- .stheme packages ---------- */
-export function unpack(input: ArrayBuffer | ArrayBufferView): { theme: Theme; assets: Assets } {
+export type Unpacked = { theme: Theme; assets: Assets };
+export function unpack(input: ArrayBuffer | ArrayBufferView): Unpacked {
   const { bytes, v } = view(input);
   if (bytes.length < 8 || bytes.length > MAX_PACKAGE || magic(bytes) !== 'STH1' || v.getUint16(6, true)) throw Error('Invalid .stheme package');
   const count = v.getUint16(4, true);
@@ -297,7 +302,7 @@ export function unpack(input: ArrayBuffer | ArrayBufferView): { theme: Theme; as
 export function pack(theme: Theme, assets: Assets): Uint8Array<ArrayBuffer> {
   const errors = validate(theme, assets);
   if (errors.length) throw Error(errors.join('\n'));
-  const entries = new Map<string, Uint8Array<ArrayBuffer>>([['theme.json', encoder.encode(JSON.stringify(theme))]]);
+  const entries = new Map<string, Uint8Array<ArrayBuffer>>([['theme.json', encoder.encode(manifestJson(theme))]]);
   for (const l of theme.layers) for (const name of framePaths(l)) if (!entries.has(name)) entries.set(name, encodeImage(assets.get(name)!));
   if (entries.size > MAX_ENTRIES) throw Error('Package exceeds 256 entries');
   let size = 8;

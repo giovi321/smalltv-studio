@@ -43,6 +43,7 @@ export function TopBar({ onSend }: { onSend: () => void }) {
         <div className="split">
           <button type="button" className="primary" disabled={busy || !ready} onClick={F.exportPackage}><Icon name="download" />Export .stheme</button>
           <Menu end summaryClass="button primary" label="More export options" summary={<Icon name="chevron" className="icon caret" />}>
+            <MenuItem title="Source folder" detail="theme.json and PNG images, as a .zip" onClick={() => void F.exportSource()} />
             <MenuItem title="Manifest only" detail="theme.json, without images" onClick={F.saveManifest} />
             <MenuItem title="Preview image" detail="240 × 240 PNG of the current frame" onClick={F.savePreview} />
           </Menu>

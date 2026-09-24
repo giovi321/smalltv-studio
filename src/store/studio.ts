@@ -98,7 +98,7 @@ export function renderFrame(s: StudioState = get()) {
 }
 export function budget(theme: Theme, packed: Uint8Array | null) {
   return {
-    manifest: C.bytesOf(JSON.stringify(theme)), manifestMax: C.MAX_MANIFEST,
+    manifest: C.manifestJson(theme).length, manifestMax: C.MAX_MANIFEST,
     layers: theme.layers.length, layersMax: MAX_LAYERS,
     entries: new Set(['theme.json', ...referenced(theme)]).size, entriesMax: C.MAX_ENTRIES,
     sources: theme.data?.length ?? 0, sourcesMax: MAX_SOURCES,
