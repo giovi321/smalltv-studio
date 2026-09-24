@@ -1,5 +1,6 @@
 /* Import / export: files in, packages and previews out. Everything stays in the browser. */
 import * as C from '../core/core';
+import { sourceFiles, zip } from '../core/source';
 import type { Asset, Assets, Theme } from '../core/types';
 import pixelRoom from '../../fixtures/pixel-room.stheme';
 import terminalOps from '../../fixtures/terminal-ops.stheme';
@@ -146,6 +147,14 @@ export function exportPackage() {
   download(s.packed, s.theme.theme.id + '.stheme', 'application/octet-stream');
   S.markSaved();
   S.notify('Package exported. Install it on the TV under Display → Theme clocks.');
+}
+/* theme.json and lossless PNGs in the firmware's source layout, as <id>.zip. */
+export async function exportSource() {
+  const s = S.useStudio.getState();
+  if (s.problems.length) { S.notify('Fix the listed issues before exporting.', true); return; }
+  const id = s.theme.theme.id, files = await sourceFiles(s.theme, s.assets);
+  download(zip(files.map(([path, data]) => [id + '/' + path, data])), id + '-source.zip', 'application/zip');
+  S.notify('Source folder exported: ' + files.length + ' files. Import it back with Import → Source folder, or build it with the firmware tools.');
 }
 export function saveManifest() {
   download(JSON.stringify(S.useStudio.getState().theme, null, 2) + '\n', 'theme.json', 'application/json');
