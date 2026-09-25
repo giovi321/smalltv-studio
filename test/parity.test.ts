@@ -12,9 +12,11 @@ import type { Theme } from '../src/core/types';
 const firmware = process.env.SMALLTV_MOD;
 const EPOCH = 1790164800, FPS = 15, FRAMES = 120;   // 2026-09-23T12:00:00Z, 8 seconds
 
+/* Resolved once: each lookup starts Python and re-hashes every firmware and ArduinoJson header. */
+let executable: string | undefined;
 function native(): string {
   const script = 'import sys; sys.path.insert(0, "tools"); import theme_native; print(theme_native.executable())';
-  return execFileSync('python3', ['-c', script], { cwd: firmware, encoding: 'utf8' }).trim();
+  return executable ??= execFileSync('python3', ['-c', script], { cwd: firmware, encoding: 'utf8' }).trim();
 }
 function compare(name: string, bytes: Uint8Array, data: Record<string, string> = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'smalltv-parity-')), pkg = join(dir, name + '.stheme'), out = join(dir, name + '.stp');
@@ -107,7 +109,7 @@ describe.skipIf(!firmware)('parity with the firmware renderer', () => {
       const field = theirs.slice(0, theirs.indexOf(':'));
       expect(ours.some(e => e.startsWith(field + ':') || e.startsWith(field + '.')), name + ': ' + theirs + ' vs ' + ours.join(' | ')).toBe(true);
     }
-  });
+  }, 120000);
   it('renders the bundled examples identically', () => {
     compare('pixel-room', fixture('pixel-room'));
     compare('terminal-ops', fixture('terminal-ops'));
