@@ -1,7 +1,7 @@
 {
   "name": "smalltv-studio",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Offline theme editor for smalltv-mod .stheme clock faces",
   "license": "WTFPL",
   "repository": {
