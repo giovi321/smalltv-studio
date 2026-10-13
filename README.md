@@ -13,6 +13,8 @@
 
 A theme editor for [smalltv-mod](https://github.com/giovi321/smalltv-mod), the custom firmware for the GeekMagic SmallTV. It builds the `.stheme` clock face packages that the firmware installs from its web UI: background images, animated sprites, clock and date text, shapes, and fields pulled from JSON data sources.
 
+Try it in the browser at **https://giovi321.github.io/smalltv-studio/**, or run it locally (below) to use Send to TV.
+
 The editor produces packages only. The device side, meaning the parser, the renderer and the install API, lives in smalltv-mod.
 
 ## Status
@@ -30,6 +32,8 @@ python3 serve.py       # open http://localhost:4173/
 ```
 
 `serve.py` is a small static server (stdlib only, 127.0.0.1) that also lets the editor talk to your TV. `dist/index.html` also works opened straight from disk, except for reading the TV's answers. Nothing leaves your machine except what you explicitly send to your own TV.
+
+The hosted copy on GitHub Pages is the same file, rebuilt from `main` on every push. It edits, previews and exports themes, but cannot use Send to TV: the page is served over HTTPS and the TV only speaks plain HTTP, so the browser blocks the requests. Export the `.stheme` and install it from the TV's web UI, or run the editor locally.
 
 For development, run `npm run dev` for the hot-reloading editor, and `python3 serve.py` next to it if you want to use Send to TV.
 
