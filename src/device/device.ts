@@ -4,6 +4,8 @@
  *  - "relay":  through serve.py, which can read the device's answers (recommended).
  *  - "direct": straight from the page. The firmware sends no CORS headers, so the answers are
  *              unreadable ("opaque"). Only requests the browser treats as simple can be sent.
+ *              smalltv-mod 3.2.1 and newer refuses them: a browser POST from another page is
+ *              cross-site, so the TV answers 403, which the page cannot see.
  */
 export type Transport = 'relay' | 'direct';
 export interface Auth { user: string; pass: string }
