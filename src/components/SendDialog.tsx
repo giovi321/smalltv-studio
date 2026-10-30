@@ -123,7 +123,7 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
         say(<span><strong>{activate ? 'Done. ' : 'Installed. '}</strong>{activate ? 'The TV now shows “' + s.theme.theme.name + '”.' : 'Choose it on the TV under Display → Theme clocks.'}</span>, 'success');
       } else {
         const url = 'http://' + target.host + '/';
-        say(<span><strong>Sent. </strong>The browser cannot confirm it. Open the TV’s page to check: <a href={url} target="_blank" rel="noopener">{url}</a></span>, 'success');
+        say(<span><strong>Sent. </strong>The browser cannot confirm it, and smalltv-mod 3.2.1 and newer refuses a send from a web page. Open the TV’s page to check: <a href={url} target="_blank" rel="noopener">{url}</a>. If the theme is not there, start the editor with <code>python3 serve.py</code> and send again.</span>, 'success');
       }
     } catch (error) { say(<span><strong>Not sent. </strong>{(error as Error).message}</span>, 'error'); }
     finally { setRunning(false); }
@@ -143,7 +143,7 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <div className={'note ' + (kind === 'relay' ? 'ok' : 'warn')}>
               {kind === 'relay'
                 ? <span>Connected through the local editor server. The TV’s answers are shown here.</span>
-                : <span>Direct mode: the TV does not allow browsers to read its answers, so errors cannot be shown. For full feedback start the editor with <code>python3 serve.py</code>.</span>}
+                : <span>Direct mode: the TV does not allow browsers to read its answers, so errors cannot be shown. smalltv-mod 3.2.1 and newer refuses a send from a web page, so direct mode only reaches 3.2.0 and older. Start the editor with <code>python3 serve.py</code> to send to any version.</span>}
             </div>
           )}
           <label className="field">TV address

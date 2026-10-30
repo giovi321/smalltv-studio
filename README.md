@@ -31,7 +31,7 @@ npm run build          # builds dist/index.html, a single self-contained file
 python3 serve.py       # open http://localhost:4173/
 ```
 
-`serve.py` is a small static server (stdlib only, 127.0.0.1) that also lets the editor talk to your TV. `dist/index.html` also works opened straight from disk, except for reading the TV's answers. Nothing leaves your machine except what you explicitly send to your own TV.
+`serve.py` is a small static server (stdlib only, 127.0.0.1) that also lets the editor talk to your TV. `dist/index.html` also works opened straight from disk, except for Send to TV on smalltv-mod 3.2.1 and newer: that firmware refuses changes a browser sends from another page, which is what a send without `serve.py` is. On 3.2.0 and older a send from disk still goes through, but the editor cannot read the TV's answers. Nothing leaves your machine except what you explicitly send to your own TV.
 
 The hosted copy on GitHub Pages is the same file, rebuilt from `main` on every push. It edits, previews and exports themes, but cannot use Send to TV: the page is served over HTTPS and the TV only speaks plain HTTP, so the browser blocks the requests. Export the `.stheme` and install it from the TV's web UI, or run the editor locally.
 
