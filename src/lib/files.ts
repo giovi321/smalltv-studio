@@ -78,7 +78,7 @@ export async function importAssets(files: File[]) {
     const result = await decodeFile(file);
     scaled ||= result.scaled;
     if (imported.length && (result.asset.width !== imported[0].width || result.asset.height !== imported[0].height)) throw Error('All frames must have the same size.');
-    bytes += C.encodeImage(result.asset).length;
+    bytes += C.encodeImage(result.asset, s.theme.spec).length;
     if (bytes > C.MAX_PACKAGE) throw Error('These images exceed the 3 MiB package limit.');
     imported.push(result.asset);
   }
@@ -119,7 +119,7 @@ export async function openFolder(files: File[]) {
     const file = lookup.get(prefix + path.slice(0, -4));
     if (!file) throw Error('Missing asset: ' + path.slice(0, -4));
     const { asset } = await decodeFile(file);
-    bytes += C.encodeImage(asset).length;
+    bytes += C.encodeImage(asset, theme.spec).length;
     if (bytes > C.MAX_PACKAGE || assets.size >= 255) throw Error('The folder exceeds the 3 MiB / 256 entry limits.');
     assets.set(path, asset);
   }

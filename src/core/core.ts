@@ -3,6 +3,7 @@
  */
 import { applicable, isColorTarget, MAX_BINDINGS, MAX_STOPS, resolveLayer, scrollColumn, scrollOffset, targetRange, textPixelWidth } from './dynamic';
 import { font } from './font';
+import { decodeSti2, encodeSti2, isSti2 } from './sti2';
 import type { Anchor, Asset, Assets, Layer, NumericTarget, Rect, Theme } from './types';
 
 const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', { fatal: true });
@@ -80,7 +81,7 @@ export function validate(theme: unknown, assets: Assets | null = null): string[]
   if (!object(theme, 'theme.json', ['spec', 'theme', 'display', 'layers', 'data'])) return errors;
   if (manifestJson(theme).length > MAX_MANIFEST) fail('theme.json', 'exceeds 16 KiB');
   if (depth(theme) > 8) fail('theme.json', 'exceeds 8 levels of nesting');
-  if (theme.spec !== 1) fail('spec', 'expected 1');
+  if (theme.spec !== 1 && theme.spec !== 2) fail('spec', 'expected 1 or 2');
   if (object(theme.theme, 'theme', ['id', 'name', 'author', 'version'])) {
     for (const [k, max] of [['id', 48], ['name', 96], ['author', 96], ['version', 32]] as const) string(theme.theme, k, 'theme', max);
     if (!idOK(theme.theme.id)) fail('theme.id', 'use letters, digits, - or _');
@@ -224,8 +225,10 @@ const view = (input: ArrayBuffer | ArrayBufferView) => {
 };
 const magic = (bytes: Uint8Array) => String.fromCharCode(...bytes.subarray(0, 4));
 
+/* Reads an STI1 or STI2 image, told apart by its header. */
 export function decodeImage(input: ArrayBuffer | ArrayBufferView): Asset {
   const { bytes, v } = view(input);
+  if (isSti2(bytes)) return decodeSti2(bytes);
   if (bytes.length < 12 || magic(bytes) !== 'STI1') throw Error('Invalid STI image');
   const width = v.getUint16(4, true), height = v.getUint16(6, true), stride = bytes[8] ? 3 : 2;
   if (width < 1 || width > 240 || height < 1 || height > 240 || bytes[8] > 1 || bytes[9] || bytes[10] || bytes[11] || bytes.length !== 12 + width * height * stride) throw Error('Invalid STI image dimensions or length');
@@ -251,7 +254,16 @@ export function resizeAsset(asset: Asset, width: number, height: number): Asset 
   }
   return { width, height, colors, alpha };
 }
-export function encodeImage(asset: Asset): Uint8Array<ArrayBuffer> {
+/* STI1 for a spec 1 theme. A spec 2 theme gets the smallest of STI1, STI2 in colors and STI2 through
+ * a palette, in that order on a tie, as the firmware's packer does. */
+export function encodeImage(asset: Asset, spec: 1 | 2 = 1): Uint8Array<ArrayBuffer> {
+  const sti1 = encodeSti1(asset);
+  if (spec < 2) return sti1;
+  let best = sti1;
+  for (const form of [encodeSti2(asset), encodeSti2(asset, true)]) if (form && form.length < best.length) best = form;
+  return best;
+}
+function encodeSti1(asset: Asset): Uint8Array<ArrayBuffer> {
   const { width, height, colors, alpha } = asset;
   if (!sideOK(width) || !sideOK(height) || colors.length !== width * height || alpha.length !== width * height) throw Error('Invalid image asset');
   const transparent = alpha.some(a => a !== 255), stride = transparent ? 3 : 2, bytes = new Uint8Array(12 + width * height * stride), v = new DataView(bytes.buffer);
@@ -270,6 +282,8 @@ export function assetRGBA(asset: Asset): Uint8ClampedArray<ArrayBuffer> {
 }
 
 /* ---------- .stheme packages ---------- */
+/* The firmware's refusal of an STI2 image in a spec 1 package, after the image's path. */
+export const SPEC2_IMAGE = ': STI2 image needs "spec": 2';
 export type Unpacked = { theme: Theme; assets: Assets };
 export function unpack(input: ArrayBuffer | ArrayBufferView): Unpacked {
   const { bytes, v } = view(input);
@@ -277,7 +291,7 @@ export function unpack(input: ArrayBuffer | ArrayBufferView): Unpacked {
   const count = v.getUint16(4, true);
   if (!count || count > MAX_ENTRIES) throw Error('Invalid package entry count');
   let offset = 8, theme: unknown;
-  const seen = new Set<string>(), assets: Assets = new Map();
+  const seen = new Set<string>(), assets: Assets = new Map(), compressed: string[] = [];
   for (let i = 0; i < count; i++) {
     if (offset + 6 > bytes.length) throw Error('Truncated package entry');
     const nameLength = v.getUint16(offset, true), size = v.getUint32(offset + 2, true); offset += 6;
@@ -291,11 +305,16 @@ export function unpack(input: ArrayBuffer | ArrayBufferView): Unpacked {
       theme = JSON.parse(decoder.decode(payload));
     } else {
       if (!name.endsWith('.sti')) throw Error('Unsupported package entry: ' + name);
+      if (isSti2(payload)) compressed.push(name);
       assets.set(name, decodeImage(payload));
     }
   }
   if (offset !== bytes.length) throw Error('Trailing package bytes');
-  const errors = validate(theme, assets);
+  // Like the firmware: the manifest, then which spec the images need, then the assets themselves.
+  let errors = validate(theme);
+  if (errors.length) throw Error(errors.join('\n'));
+  if ((theme as Theme).spec < 2 && compressed.length) throw Error(compressed[0] + SPEC2_IMAGE);
+  errors = validate(theme, assets);
   if (errors.length) throw Error(errors.join('\n'));
   return { theme: theme as Theme, assets };
 }
@@ -303,7 +322,7 @@ export function pack(theme: Theme, assets: Assets): Uint8Array<ArrayBuffer> {
   const errors = validate(theme, assets);
   if (errors.length) throw Error(errors.join('\n'));
   const entries = new Map<string, Uint8Array<ArrayBuffer>>([['theme.json', encoder.encode(manifestJson(theme))]]);
-  for (const l of theme.layers) for (const name of framePaths(l)) if (!entries.has(name)) entries.set(name, encodeImage(assets.get(name)!));
+  for (const l of theme.layers) for (const name of framePaths(l)) if (!entries.has(name)) entries.set(name, encodeImage(assets.get(name)!, theme.spec));
   if (entries.size > MAX_ENTRIES) throw Error('Package exceeds 256 entries');
   let size = 8;
   for (const [name, data] of entries) size += 6 + bytesOf(name) + data.length;

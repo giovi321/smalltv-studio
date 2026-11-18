@@ -91,7 +91,7 @@ export interface DataSource {
 }
 
 export interface Theme {
-  spec: 1;
+  spec: 1 | 2;
   theme: { id: string; name: string; author: string; version: string };
   display: { width: number; height: number; background: string };
   layers: Layer[];
