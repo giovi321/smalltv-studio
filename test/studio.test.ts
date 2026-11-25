@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import * as C from '../src/core/core';
 import * as S from '../src/store/studio';
 import type { TextLayer } from '../src/core/types';
 
@@ -20,6 +21,24 @@ describe('studio store', () => {
     expect(text(0).value).toBe('{HH}:{MM}');
     S.redo();
     expect(text(0).value).toBe('AB');
+  });
+  it('undoes a format change, image sizes and export included', () => {
+    // An image the theme stores smaller in spec 2: the size the Inspector shows follows the spec.
+    const project = S.blankProject(), asset = C.fromRGBA(40, 40, new Uint8Array(40 * 40 * 4).fill(255));
+    project.theme.layers.push({ id: 'logo', type: 'image', x: 0, y: 0, source: 'images/logo.png' });
+    project.assets.set('images/logo.png.sti', asset);
+    S.load(project);
+    const spec1 = state().packed, size = () => C.encodeImage(asset, state().theme.spec).length;
+    expect(size()).toBe(12 + 40 * 40 * 2);
+    S.edit(d => { d.theme.spec = 2; });
+    expect(state().theme.spec).toBe(2);
+    expect(size()).toBeLessThan(12 + 40 * 40 * 2);
+    S.undo();
+    expect(state().theme.spec).toBe(1);
+    expect(size()).toBe(12 + 40 * 40 * 2);
+    expect(state().packed).toEqual(spec1);
+    S.redo();
+    expect(state().theme.spec).toBe(2);
   });
   it('adds, duplicates, reorders and removes layers', () => {
     expect(S.addLayer('shape')).toBe(true);

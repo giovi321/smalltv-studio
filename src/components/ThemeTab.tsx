@@ -1,6 +1,6 @@
 import * as S from '../store/studio';
 import { useStudio } from '../store/studio';
-import { ColorInput } from './controls';
+import { ColorInput, Segmented } from './controls';
 
 const kib = (n: number) => (n / 1024).toFixed(1) + ' KiB';
 const META = [['name', 'Name', 96], ['id', 'ID', 48], ['version', 'Version', 32], ['author', 'Author', 96]] as const;
@@ -17,7 +17,7 @@ function Meter({ label, value, max, text, warn = 0.8 }: { label: string; value: 
 }
 
 export function ThemeTab() {
-  const meta = useStudio(s => s.theme.theme), background = useStudio(s => s.theme.display.background);
+  const meta = useStudio(s => s.theme.theme), spec = useStudio(s => s.theme.spec), background = useStudio(s => s.theme.display.background);
   const b = S.budget(useStudio(s => s.theme), useStudio(s => s.packed));
   const input = (key: MetaKey) => {
     const [, label, max] = META.find(m => m[0] === key)!;
@@ -39,6 +39,13 @@ export function ThemeTab() {
           <span className="field-label">Screen background</span>
           <ColorInput value={background} label="Screen background" id="background" onValue={v => S.edit(d => { d.theme.display.background = v; }, 'background')} />
         </div>
+        <div className="field">
+          <span className="field-label">Format</span>
+          <Segmented options={[['1', 'Spec 1'], ['2', 'Spec 2']] as const} value={spec === 2 ? '2' : '1'} onPick={v => S.edit(d => { d.theme.spec = v === '2' ? 2 : 1; })} label="Theme format" />
+        </div>
+        <p className="hint">{spec === 2
+          ? 'Spec 2 needs smalltv-mod firmware that reads it. Images are stored compressed (STI2) when that is smaller.'
+          : 'Spec 1 works on every firmware that reads themes. Images are stored uncompressed (STI1).'}</p>
         <p className="hint">The ID becomes the file name on the device: <code>/themes/{meta.id || '…'}.stheme</code></p>
       </div>
       <div className="panel-heading spaced"><h2>Budget</h2></div>

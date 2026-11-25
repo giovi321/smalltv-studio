@@ -1,5 +1,5 @@
 /* Right panel: properties of the selected layer, and the problems that block exporting. */
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as C from '../core/core';
 import { textPixelWidth } from '../core/dynamic';
 import type { AnimationLayer, Assets, ImageLayer, Layer, Scroll, ShapeKind, ShapeLayer, TextLayer } from '../core/types';
@@ -217,13 +217,13 @@ function ShapeSections({ layer }: { layer: ShapeLayer }) {
 
 let keepRatioDefault = true;
 function AssetSections({ layer }: { layer: ImageLayer | AnimationLayer }) {
-  const assets = useStudio(s => s.assets);
+  const assets = useStudio(s => s.assets), spec = useStudio(s => s.theme.spec);
   const [keepRatio, setKeepRatio] = useState(keepRatioDefault);
   // Resample from the pixels the user started with, so typing "48" never goes through a destructive "4".
   const base = useRef<Assets | null>(null);
   const isImage = layer.type === 'image', dims = S.layerDimensions(layer, assets), ratio = dims.width / dims.height || 1;
   const present = assets.has(C.pathFor(layer));
-  const bytes = C.framePaths(layer).reduce((n, p) => { const a = assets.get(p); return a ? n + C.encodeImage(a).length : n; }, 0);
+  const bytes = useMemo(() => C.framePaths(layer).reduce((n, p) => { const a = assets.get(p); return a ? n + C.encodeImage(a, spec).length : n; }, 0), [layer, assets, spec]);
   const resize = (width: number, height: number) => S.edit(d => S.resizeLayer(d, d.theme.layers[d.selected], width, height, base.current ?? d.assets), layer.id + ':resize');
   return (
     <>
